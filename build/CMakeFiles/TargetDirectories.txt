@@ -1,0 +1,3 @@
+/home/jsbaasi/Coding/ModBot/build/CMakeFiles/ModBot.dir
+/home/jsbaasi/Coding/ModBot/build/CMakeFiles/edit_cache.dir
+/home/jsbaasi/Coding/ModBot/build/CMakeFiles/rebuild_cache.dir
