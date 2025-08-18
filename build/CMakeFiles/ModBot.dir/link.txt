@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/ModBot.dir/src/main.cpp.o -o ModBot  /usr/lib/libdpp.so 
