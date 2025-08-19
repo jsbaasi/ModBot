@@ -1,8 +1,8 @@
--Install dpp with the deb file:
--apt install wget
--wget -O dpp.deb https://dl.dpp.dev/
--dpkg -i dpp.deb
--`git clone`
--Create build dir in root dir
--Navigate to build, run `cmake ..`
--Navigate to root, run `cmake --build build`
+  -Install dpp with the deb file:
+  -apt install wget
+  -wget -O dpp.deb https://dl.dpp.dev/
+  -dpkg -i dpp.deb
+  -`git clone`
+  -Create build dir in root dir
+  -Navigate to build, run `cmake ..`
+  -Navigate to root, run `cmake --build build`
