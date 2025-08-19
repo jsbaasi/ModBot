@@ -1,3 +1,4 @@
+  - sudo apt install libopus0
   - Install dpp with the deb file:
   - apt install wget
   - wget -O dpp.deb https://dl.dpp.dev/
