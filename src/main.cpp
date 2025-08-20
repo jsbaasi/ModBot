@@ -15,10 +15,13 @@ pollute the global namespace with
 
 https://www.learncpp.com/cpp-tutorial/a1-static-and-dynamic-libraries/
 I need to learn about libraries for sqlite
+
+If I don't give it a txt file the bot just hangs, as if waiting for input but nothing happens when
+I type something in
 */
 
 int main() {
-    std::ifstream tokenStream{ "mytoken.txt" };
+    std::ifstream tokenStream{ "src/mytoken.txt" };
     std::string BOT_TOKEN{};
     tokenStream >> BOT_TOKEN;
     tokenStream.close();
