@@ -10,17 +10,20 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
 )
  
-# Find our pre-installed DPP package (using FindDPP.cmake).
+# Find our pre-installed packages (using cmake/).
 find_package(DPP REQUIRED)
- 
+find_package(SQLITE REQUIRED)
+
 # Link the pre-installed DPP package.
 target_link_libraries(${PROJECT_NAME} 
     ${DPP_LIBRARIES}
+    ${SQLITE_LIBRARIES}
 )
  
 # Include the DPP directories.
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${DPP_INCLUDE_DIR}
+    ${SQLITE_INCLUDE_DIR}
 )
  
 # Set C++ version
