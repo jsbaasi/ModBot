@@ -7,5 +7,5 @@
   - Create build dir in root dir
   - Navigate to build, run `cmake ..`
   - Navigate to root, run `cmake --build build`
-  - Download sqlite amalgamation, make and then make install
+  - Download sqlite amalgamation, `make` and then `make install`
   - Add token to mytoken.txt in src/ directory

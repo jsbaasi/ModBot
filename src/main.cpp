@@ -26,6 +26,19 @@ Then we have either one table storing all balance history or we have table for e
 their balance history, naa one table
 */
 
+int callback(void* data, int numberOfColumns, char **recordValues, char **columnNames){
+    int i{0};
+   
+    for(i = 0; i<numberOfColumns; i++){
+        static_cast<dpp::cluster*>(data)->message_create(dpp::message(1407116920288710726, recordValues[i]));
+        if (columnNames[i]=="Birthday"){;}
+        std::cout << columnNames[i] << " = " << (recordValues[i] ? recordValues[i] : "NULL") << '\n';
+    }
+   
+    std::cout << "\n";
+    return 0;
+}
+
 int main() {
     std::ifstream tokenStream{ "src/mytoken.txt" };
     std::string BOT_TOKEN{};
@@ -48,11 +61,32 @@ int main() {
             // bot.request("https://dpp.dev/DPP-Logo.png", dpp::m_get, [&bot](const dpp::http_request_completion_t& callback) {
             //     bot.message_create(dpp::message(1407116920288710726, "").add_file("image.png", callback.body));
             // });
-            
+
             bot.message_create(dpp::message(1407116920288710726, "hello"));
 
+            // ------------------- Starting sqlite3 stuff
 
-
+            sqlite3* db{};
+            char *zErrMsg = 0;
+            void* data {&bot};
+            int rc = sqlite3_open("data/thediscord", &db);
+            if( rc ) {
+                std::cout << stderr << "Can't open database: " << sqlite3_errmsg(db) << '\n';
+                return 0;
+            } else {
+                std::cout << stderr << "Opened database successfully" << '\n';
+            }
+            std::string sql = "SELECT * from Users";
+            rc = sqlite3_exec(db, sql.c_str(), callback, (void*)data, &zErrMsg);
+            if( rc != SQLITE_OK ) {
+                std::cout << stderr << "SQL error: " << zErrMsg << '\n';
+                sqlite3_free(zErrMsg);
+            } else {
+                std::cout << stdout << "Operation done successfully" << '\n';
+            }
+            sqlite3_close(db);
+            bot.message_create(dpp::message(1407116920288710726, "bye"));
+            return 0;
         }, 5);
 
         if (dpp::run_once<struct register_bot_commands>()) {
@@ -68,4 +102,5 @@ int main() {
 
 
     bot.start(dpp::st_wait);
+    return 0;
 }
