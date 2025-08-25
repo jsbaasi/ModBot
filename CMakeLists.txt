@@ -32,5 +32,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 #     CXX_STANDARD_REQUIRED ON
 # )
 # set(CMAKE_CXX_FLAGS "-stdlib=libc++")
+set(CMAKE_CXX_COMPILER )
 set(CMAKE_CXX_FLAGS "-std=c++20 -stdlib=libc++ -fuse-ld=lld -v")
 set(CMAKE_LINKER_TYPE LLD)
