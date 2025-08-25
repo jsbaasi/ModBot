@@ -1,8 +1,15 @@
+#include <dpp/dispatcher.h>
+#include <dpp/intents.h>
+#include <dpp/snowflake.h>
 #include <fstream>
 #include <iostream>
 #include <dpp/dpp.h>
+#include <dpp/presence.h>
 #include <string>
 #include <sqlite3.h>
+#include <unordered_map>
+#include <vector>
+#include <format>
 
 /*
 So the main functionality of the bot is the tracking stuff, need to make a 10sec/1min/5min loop that
@@ -26,16 +33,13 @@ Then we have either one table storing all balance history or we have table for e
 their balance history, naa one table
 */
 
-int callback(void* data, int numberOfColumns, char **recordValues, char **columnNames){
-    int i{0};
-   
-    for(i = 0; i<numberOfColumns; i++){
-        static_cast<dpp::cluster*>(data)->message_create(dpp::message(1407116920288710726, recordValues[i]));
-        if (columnNames[i]=="Birthday"){;}
-        std::cout << columnNames[i] << " = " << (recordValues[i] ? recordValues[i] : "NULL") << '\n';
+int getUserIdFromRecord(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+    for(int i{0}; i<numberOfColumns; i++){
+        if (strcmp(columnNames[i],"UserId")==0) {
+            static_cast<std::vector<dpp::snowflake>*>(users)->push_back(static_cast<dpp::snowflake>(std::strtoull(recordValues[i], NULL, 10)));
+            break;
+        }
     }
-   
-    std::cout << "\n";
     return 0;
 }
 
@@ -44,8 +48,16 @@ int main() {
     std::string BOT_TOKEN{};
     tokenStream >> BOT_TOKEN;
     tokenStream.close();
-    dpp::cluster bot(BOT_TOKEN);
+    dpp::cluster bot(BOT_TOKEN, dpp::intents::i_default_intents | dpp::intents::i_guild_presences);
     bot.on_log(dpp::utility::cout_logger());
+    std::unordered_map<dpp::snowflake, dpp::presence> discordPresences{};
+    std::unordered_map<dpp::presence_status, std::string> presenceStatusToString{
+        {dpp::presence_status::ps_offline, std::string{"Offline"}},
+        {dpp::presence_status::ps_online, std::string{"Online"}},
+        {dpp::presence_status::ps_dnd, std::string{"Do not disturb"}},
+        {dpp::presence_status::ps_idle, std::string{"Idle"}},
+        {dpp::presence_status::ps_invisible, std::string{"Invisible"}},
+    };
 
     // This handles the commands that get passed in
     bot.on_slashcommand([](const dpp::slashcommand_t& event) {
@@ -55,20 +67,24 @@ int main() {
     });
 
     // This runs when the bot starts
-    bot.on_ready([&bot](const dpp::ready_t& event) {
+    bot.on_ready([&bot, &discordPresences, &presenceStatusToString](const dpp::ready_t& event) {
         
-        bot.start_timer([&bot](const dpp::timer& timer){
+        bot.start_timer([&bot, &discordPresences, &presenceStatusToString](const dpp::timer& timer){
             // bot.request("https://dpp.dev/DPP-Logo.png", dpp::m_get, [&bot](const dpp::http_request_completion_t& callback) {
             //     bot.message_create(dpp::message(1407116920288710726, "").add_file("image.png", callback.body));
             // });
+            // bot.message_create(dpp::message(1407116920288710726, "hello"));s
 
-            bot.message_create(dpp::message(1407116920288710726, "hello"));
+            /*
+            The timer loop will at a high level:
+            Sqlite calls to get players
+            Discord api calls to get information on players
+            Sqlite calls to update stored information on players
+            */
 
-            // ------------------- Starting sqlite3 stuff
-
+            // ------------------- Setup sqlite stuff DONE
             sqlite3* db{};
             char *zErrMsg = 0;
-            void* data {&bot};
             int rc = sqlite3_open("data/thediscord", &db);
             if( rc ) {
                 std::cout << stderr << "Can't open database: " << sqlite3_errmsg(db) << '\n';
@@ -76,30 +92,48 @@ int main() {
             } else {
                 std::cout << stderr << "Opened database successfully" << '\n';
             }
+
+            // ------------------- Get users DONE
             std::string sql = "SELECT * from Users";
-            rc = sqlite3_exec(db, sql.c_str(), callback, (void*)data, &zErrMsg);
+            std::vector<dpp::snowflake> users {};
+            rc = sqlite3_exec(db, sql.c_str(), getUserIdFromRecord, static_cast<void*>(&users), &zErrMsg);
             if( rc != SQLITE_OK ) {
                 std::cout << stderr << "SQL error: " << zErrMsg << '\n';
                 sqlite3_free(zErrMsg);
             } else {
                 std::cout << stdout << "Operation done successfully" << '\n';
+                for (const dpp::snowflake& userId: users) {
+                    std::cout << userId << '\n';
+                }
             }
+            // ------------------- Update stored information
+            // Some kind of insert sql statement to the transactions table 
+            
+
+            // ------------------- Close out sql stuff DONE
             sqlite3_close(db);
-            bot.message_create(dpp::message(1407116920288710726, "bye"));
+            // for (const auto& [k,v]: discordPresences) {
+            //     std::cout << "user id " << k << " presence " << presenceStatusToString[v.status()] << '\n';
+            // }
             return 0;
         }, 5);
 
         if (dpp::run_once<struct register_bot_commands>()) {
             bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
         }
-
+    
     });
 
-
-
-
-
-
+    // Keeping our presence map up to date
+    bot.on_presence_update([&discordPresences](const dpp::presence_update_t& event){
+        discordPresences[event.rich_presence.user_id] = event.rich_presence;
+    });
+    // Collecting our presence data when our bot starts up
+    bot.on_guild_create([&discordPresences](const dpp::guild_create_t& event){
+        for (const auto& [k,v]: event.presences) {
+            discordPresences[k] = v;
+        }
+    });
 
     bot.start(dpp::st_wait);
     return 0;
