@@ -28,10 +28,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
  
 # Set C++ version
 # set_target_properties(${PROJECT_NAME} PROPERTIES
-#     CXX_STANDARD 20
+#     CXX_STANDARD 23
 #     CXX_STANDARD_REQUIRED ON
 # )
-# set(CMAKE_CXX_FLAGS "-stdlib=libc++")
-set(CMAKE_CXX_COMPILER )
-set(CMAKE_CXX_FLAGS "-std=c++20 -stdlib=libc++ -fuse-ld=lld -v")
-set(CMAKE_LINKER_TYPE LLD)
+
+# set(CMAKE_CXX_COMPILER /usr/local/bin/clang++)
+set(CMAKE_CXX_FLAGS "-std=c++20 -stdlib=libc++ -fuse-ld=lld")
+# set(CMAKE_CXX_LINK_EXECUTABLE "/usr/local/bin/clang++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET>")
+# set(CMAKE_LINKER_TYPE LLD)
