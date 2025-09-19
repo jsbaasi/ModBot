@@ -4,3 +4,4 @@ data/
 src/ptoken.txt
 src/dtoken.txt
 .cache/
+status.txt

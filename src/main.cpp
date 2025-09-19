@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <cstdlib>
+#include <ctime>
 #include <dpp/dispatcher.h>
 #include <dpp/intents.h>
 #include <dpp/snowflake.h>
@@ -49,6 +51,23 @@ Then we have either one table storing all balance history or we have table for e
 their balance history, naa one table
 */
 
+time_t UTCStringToTimeT(const char* timestr, const char* fmtstr) {
+	std::tm t = {}; // tm_isdst = 0, don't think about it please, this is UTC
+	std::istringstream ss(timestr);
+	ss.imbue(std::locale()); // "LANG=C", but local
+
+	ss >> std::get_time(&t, fmtstr);
+	if (ss.fail())
+		return -1;
+	// now fix up the day of week, day of year etc
+	t.tm_isdst = 0; // no thinking!
+	t.tm_wday = -1;
+	if (mktime(&t) == -1 && t.tm_wday == -1) // "real error"
+		return -1;
+
+	return mktime(&t);
+}
+
 int getUserIdArrayFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
     for(int i{0}; i<numberOfColumns; i++){
         if (strcmp(columnNames[i],"UserId")==0) {
@@ -91,8 +110,12 @@ struct PubgPost{
     std::unordered_map<std::string, PubgPlayerSummary>players{}; // PubgId as key not discord snowflake
     std::string mapName{};
     int winPlace{};
-    std::string timestamp{};
+    time_t matchStartTime{};
 };
+
+bool pubgPostSorter(PubgPost const& lhs, PubgPost const& rhs) {
+	return lhs.matchStartTime < rhs.matchStartTime;
+}
 
 // Returns a pubg message with embed
 dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPost, std::unordered_map<std::string, dpp::snowflake>& pubgIdToDiscordUser) {
@@ -109,12 +132,11 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
     } else {
         resEmbed.set_color(dpp::colors::alien_gray);
     }
-
     std::string playerString {};
     std::string statsString {};
     for (const auto& [pubgId,pubgPlayerSummary]: pubgPost.players) {
         playerString+=std::format("<@{}>\n", pubgIdToDiscordUser[pubgId].str());
-        statsString+=std::format("{} - {} - {} - {:.1f} - {:.1f}\n", pubgPlayerSummary.kills, pubgPlayerSummary.revives, pubgPlayerSummary.assists, pubgPlayerSummary.longestKill, pubgPlayerSummary.damageDealt);
+        statsString+=std::format("K:{}-R:{}-A:{}-LK:{:.1f}m-D:{:.1f}\n", pubgPlayerSummary.kills, pubgPlayerSummary.revives, pubgPlayerSummary.assists, pubgPlayerSummary.longestKill, pubgPlayerSummary.damageDealt);
     }
 
     resEmbed.set_author("JJB", "https://jsbaasi.github.io/", "attachment://jjbLogo.png")
@@ -123,7 +145,7 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
             .set_title(std::format("#{} Place", pubgPost.winPlace))
             .add_field(
             "Squad FPP",
-            std::format("Match went on for {:.1f} minutes", pubgPost.duration/60.0f)
+            std::format("Match went on for {:.1f} minutes, started <t:{}:R>", pubgPost.duration/60.0f, pubgPost.matchStartTime)
             )
             .add_field(
             "Players",
@@ -131,11 +153,11 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
             true
             )
             .add_field(
-                "Kills - Revives - Assists - Longest Kill - Damage Dealt",
+                "Stats",
                 statsString,
                 true
             )
-            .set_timestamp(time(0));
+            .set_timestamp(pubgPost.matchStartTime);
 
     resMessage.add_embed(resEmbed);
     return resMessage;
@@ -358,7 +380,7 @@ int main() {
                 nlohmann::json& matchParticipants {matchJson["included"]};
                 if (matchJson["data"]["attributes"]["gameMode"] == "squad-fpp") {
                     PubgPost currPost {matchJson["data"]["attributes"]["duration"]};
-                    currPost.timestamp = matchJson["data"]["attributes"]["createdAt"];
+                    currPost.matchStartTime = UTCStringToTimeT(static_cast<std::string>(matchJson["data"]["attributes"]["createdAt"]).c_str(), "%Y-%m-%dT%H:%M:%SZ");
                     currPost.mapName = matchJson["data"]["attributes"]["mapName"];
                     currPost.winPlace = 101;
                     for (const auto& entity: matchParticipants) {
@@ -383,10 +405,10 @@ int main() {
             }
 
             // Sort the posts list
-            // TODO still need to add a time started member variable
+            std::sort(pubgPosts.begin(), pubgPosts.end(), &pubgPostSorter);
 
             // Create a message for each post in the list
-            std::cout << "we made all the posts i think" <<'\n';
+            std::cout << "we finished checking all player's match delta" <<'\n';
             for (const PubgPost& pubgPost: pubgPosts) {
                 bot.message_create(getPubgPostMessage(mossadChannel, pubgPost, pubgIdToDiscordUser));
             }
