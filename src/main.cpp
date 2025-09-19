@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <dpp/dispatcher.h>
 #include <dpp/intents.h>
 #include <dpp/snowflake.h>
@@ -5,14 +6,26 @@
 #include <iostream>
 #include <dpp/dpp.h>
 #include <dpp/presence.h>
+#include <set>
 #include <string>
 #include <sqlite3.h>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 #include <format>
+#include "colors.h"
 #include "daily.h"
+#include "guild.h"
+#include "message.h"
+#include "nlohmann/json_fwd.hpp"
+#include "user.h"
 #include <stdlib.h>
+#include <cpr/cpr.h>
+#include "cpr/response.h"
+#include "cpr/api.h"
+#include "cpr/cprtypes.h"
+#include "json.h"
+#include <functional>
 
 /*
 So the main functionality of the bot is the tracking stuff, need to make a 10sec/1min/5min loop that
@@ -36,7 +49,7 @@ Then we have either one table storing all balance history or we have table for e
 their balance history, naa one table
 */
 
-int getUserIdFromRecord(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+int getUserIdArrayFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
     for(int i{0}; i<numberOfColumns; i++){
         if (strcmp(columnNames[i],"UserId")==0) {
             static_cast<std::vector<dpp::snowflake>*>(users)->push_back(static_cast<dpp::snowflake>(std::strtoull(recordValues[i], NULL, 10)));
@@ -46,17 +59,99 @@ int getUserIdFromRecord(void* users, int numberOfColumns, char **recordValues, c
     return 0;
 }
 
-int getBalanceFromRecord(void* balance, int numberOfColumns, char **recordValues, char **columnNames){
+int getPubgIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+    // I'm casting the void pointer to map, then dereferencing it to use the operator[]
+    static_cast<std::unordered_map<std::string, dpp::snowflake>*>(users)->operator[](recordValues[1]) = recordValues[0];
+    return 0;
+}
+
+int getUserIdSetFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+    static_cast<std::set<dpp::snowflake>*>(users)->insert(static_cast<dpp::snowflake>(std::strtoull(recordValues[0], NULL, 10)));
+    return 0;
+}
+
+int getBalanceFromRecords(void* balance, int numberOfColumns, char **recordValues, char **columnNames){
     *static_cast<int*>(balance) = atoi(recordValues[0]);
     return 0;
 }
 
+struct PubgPlayerSummary{
+    std::string name{};
+    int kills{};
+    int revives{};
+    int assists{};
+    double longestKill{};
+    double damageDealt{};
+};
+
+struct PubgPost{
+    // TODO I need to add time started member variable, carry on with visual studio experiments on mktime() and tm structs and all that bologna
+    int duration{};
+    bool isWon{};
+    std::unordered_map<std::string, PubgPlayerSummary>players{}; // PubgId as key not discord snowflake
+    std::string mapName{};
+    int winPlace{};
+    std::string timestamp{};
+};
+
+// Returns a pubg message with embed
+dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPost, std::unordered_map<std::string, dpp::snowflake>& pubgIdToDiscordUser) {
+    dpp::embed resEmbed{};
+    dpp::message resMessage{channelId, ""};
+
+    resMessage.add_file("pubg.png", dpp::utility::read_file("images/pubgicon.png"));
+    resMessage.add_file("map.png", dpp::utility::read_file(std::format("images/maps/{}.png", pubgPost.mapName)));
+    resMessage.add_file("jjbLogo.png", dpp::utility::read_file("images/jjb/jjbLogo.png"));
+
+    if (pubgPost.isWon) {
+        resEmbed.set_color(dpp::colors::bright_gold);
+        resMessage.set_allowed_mentions(true);
+    } else {
+        resEmbed.set_color(dpp::colors::alien_gray);
+    }
+
+    std::string playerString {};
+    std::string statsString {};
+    for (const auto& [pubgId,pubgPlayerSummary]: pubgPost.players) {
+        playerString+=std::format("<@{}>\n", pubgIdToDiscordUser[pubgId].str());
+        statsString+=std::format("{} - {} - {} - {:.1f} - {:.1f}\n", pubgPlayerSummary.kills, pubgPlayerSummary.revives, pubgPlayerSummary.assists, pubgPlayerSummary.longestKill, pubgPlayerSummary.damageDealt);
+    }
+
+    resEmbed.set_author("JJB", "https://jsbaasi.github.io/", "attachment://jjbLogo.png")
+            .set_thumbnail("attachment://pubg.png")
+            .set_image("attachment://map.png")
+            .set_title(std::format("#{} Place", pubgPost.winPlace))
+            .add_field(
+            "Squad FPP",
+            std::format("Match went on for {:.1f} minutes", pubgPost.duration/60.0f)
+            )
+            .add_field(
+            "Players",
+            playerString,
+            true
+            )
+            .add_field(
+                "Kills - Revives - Assists - Longest Kill - Damage Dealt",
+                statsString,
+                true
+            )
+            .set_timestamp(time(0));
+
+    resMessage.add_embed(resEmbed);
+    return resMessage;
+}
+
 int main() {
-    std::ifstream tokenStream{ "src/mytoken.txt" };
-    std::string BOT_TOKEN{};
-    tokenStream >> BOT_TOKEN;
-    tokenStream.close();
-    dpp::cluster bot(BOT_TOKEN, dpp::intents::i_default_intents | dpp::intents::i_guild_presences);
+    std::ifstream dTokenStream{ "src/dtoken.txt" };
+    std::string D_TOKEN{};
+    dTokenStream >> D_TOKEN;
+    dTokenStream.close();
+    std::ifstream pTokenStream{ "src/ptoken.txt" };
+    std::string P_TOKEN{};
+    pTokenStream >> P_TOKEN;
+    pTokenStream.close();
+    constexpr dpp::snowflake mossadChannel {1407116920288710726};
+    dpp::cluster bot(D_TOKEN, dpp::intents::i_default_intents | dpp::intents::i_guild_presences);
     bot.on_log(dpp::utility::cout_logger());
     std::unordered_map<dpp::presence_status, std::string> presenceStatusToString{
         {dpp::presence_status::ps_offline, std::string{"Offline"}},
@@ -68,6 +163,7 @@ int main() {
     std::chrono::system_clock myclock{};
     std::unordered_map<dpp::snowflake, dpp::presence> discordPresences{};
     std::unordered_map<dpp::snowflake, int> userDailies{};
+    std::unordered_map<std::string, std::string> lastKnownMatches{};
 
     // This handles the commands that get passed in
     bot.on_slashcommand([](const dpp::slashcommand_t& event) {
@@ -82,25 +178,44 @@ int main() {
             if( rc ) {
                 std::cout << stderr << "Can't open database: " << sqlite3_errmsg(db) << '\n';
             }
-            std::string_view balanceSelect = "SELECT Balance FROM Users WHERE UserId={};";
-            std::string sql = std::vformat(balanceSelect, std::make_format_args(static_cast<long long>(event.command.get_issuing_user().id)));
-            rc = sqlite3_exec(db, sql.c_str(), getBalanceFromRecord, static_cast<void*>(&balance), &zErrMsg);
+            constexpr std::string_view balanceSelect = "SELECT Balance FROM Users WHERE UserId={};";
+            std::string sql = std::format(balanceSelect, static_cast<long long>(event.command.get_issuing_user().id));
+            rc = sqlite3_exec(db, sql.c_str(), getBalanceFromRecords, static_cast<void*>(&balance), &zErrMsg);
             if (balance==-1) {
                 event.reply("You are not registered in the bot's database");
             } else {
                 event.reply(std::format("Your aura balance is {}", balance));
             }
         }
+        if (event.command.get_command_name() == "register") {
+            sqlite3* db{};
+            char *zErrMsg = 0;
+            int rc = sqlite3_open("data/thediscord", &db);
+            std::set<dpp::snowflake> users {};
+            std::string sql = "SELECT UserId FROM Users;";
+            rc = sqlite3_exec(db, sql.c_str(), getUserIdSetFromRecords, static_cast<void*>(&users), &zErrMsg);
+            if (users.contains(event.command.get_issuing_user().id)) {
+                event.reply("You are already registered in the bot");
+            } else {
+                event.reply("putting you in the table twin");
+            }
+        }
     });
 
-    // This runs when the bot starts
-    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies](const dpp::ready_t& event) {
+    // This runs when the bot starts and reigsters our timers:
+    // 1. User polling
+    // 2. Pubg polling
+    // And also registers the bot commands
+    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &mossadChannel](const dpp::ready_t& event) {
         
+        // ------------------- User polling timer
         bot.start_timer([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies](const dpp::timer& timer){
             // bot.request("https://dpp.dev/DPP-Logo.png", dpp::m_get, [&bot](const dpp::http_request_completion_t& callback) {
             //     bot.message_create(dpp::message(1407116920288710726, "").add_file("image.png", callback.body));
             // });
-            // bot.message_create(dpp::message(1407116920288710726, "hello"));s
+            // dpp::message mymessage {1407116920288710726, "hello <@310692287191580674>"};
+            // mymessage.set_allowed_mentions(true);
+            // bot.message_create(mymessage);
 
             /*
             The timer loop will at a high level:
@@ -120,14 +235,22 @@ int main() {
             // ------------------- Get users DONE
             std::vector<dpp::snowflake> users {};
             std::string sql = "SELECT * from Users";
-            std::string_view transactionInsert = "INSERT INTO Transactions (TransactionId,UserId,BalanceDelta,Time,TransactionDescription,TransactionType) VALUES ({}, {}, {}, {}, {}, {});";
-            rc = sqlite3_exec(db, sql.c_str(), getUserIdFromRecord, static_cast<void*>(&users), &zErrMsg);
+            constexpr std::string_view transactionInsert = "INSERT INTO Transactions (TransactionId,UserId,BalanceDelta,Time,TransactionDescription,TransactionType) VALUES ({}, {}, {}, {}, {}, {});";
+            rc = sqlite3_exec(db, sql.c_str(), getUserIdArrayFromRecords, static_cast<void*>(&users), &zErrMsg);
             if( rc != SQLITE_OK ) {
                 std::cout << stderr << "SQL error: " << zErrMsg << '\n';
                 sqlite3_free(zErrMsg);
             }
-            // ------------------- For each user, check dailies and update stored information
+            for (const dpp::snowflake& userId: users) {
+                if (userId == static_cast<dpp::snowflake>(310692287191580674)){
+                    nlohmann::json jsbaasi = discordPresences[userId].to_json();
+                    std::ofstream outf{ "status.txt" };
+                    outf << jsbaasi;
+                }
+
+            }
             
+            // ------------------- For each user, check dailies and update stored information
             for (const dpp::snowflake& userId: users) {
                 int userBalanceChange {0};
                 long long timeNow = std::chrono::duration_cast<std::chrono::milliseconds>((myclock.now()).time_since_epoch()).count();
@@ -140,7 +263,7 @@ int main() {
                 (discordPresences[userId].status()==dpp::presence_status::ps_online)) {
                     userDailies[userId] |= daily::check::c_wasOnline;
                     userBalanceChange += daily::delta::d_wasOnline;
-                    rc = sqlite3_exec(db, std::vformat(transactionInsert, std::make_format_args("NULL", static_cast<long long>(userId), static_cast<int>(daily::delta::d_wasOnline), timeNow, "\"Daily: User was online\"", 1)).c_str(), NULL, 0, &zErrMsg);
+                    rc = sqlite3_exec(db, std::format(transactionInsert, "NULL", static_cast<long long>(userId), static_cast<int>(daily::delta::d_wasOnline), timeNow, "\"Daily: User was online\"", 1).c_str(), NULL, 0, &zErrMsg);
                     if( rc != SQLITE_OK ){
                         fprintf(stderr, "SQL error: %s\n", zErrMsg);
                         sqlite3_free(zErrMsg);
@@ -150,25 +273,14 @@ int main() {
 
                 // ------------------- Finally update what we collected from dailies
                 if (userBalanceChange>0) {
-                    std::string_view balanceUpdate = "UPDATE Users SET Balance = Balance + {} WHERE UserId = {};";
-                    std::string sql = std::vformat(balanceUpdate, std::make_format_args(userBalanceChange, static_cast<long long>(userId)));
+                    constexpr std::string_view balanceUpdate = "UPDATE Users SET Balance = Balance + {} WHERE UserId = {};";
+                    std::string sql = std::format(balanceUpdate, userBalanceChange, static_cast<long long>(userId));
                     rc = sqlite3_exec(db, sql.c_str(), NULL, 0, &zErrMsg);
                 }
 
-                // if (((userDailies[userId] & daily::check::c_wasOnline) != daily::check::c_wasOnline) and
-                // (discordPresences[userId].status()==dpp::presence_status::ps_online)) {
-                //     userDailies[userId] |= daily::check::c_wasOnline;
-                //     userBalanceChange += daily::delta::d_wasOnline;
-                //     rc = sqlite3_exec(db, std::vformat(transactionInsert, std::make_format_args("NULL", static_cast<long long>(userId), 0, timeNow, "\"Daily: User was online\"", 1)).c_str(), NULL, 0, &zErrMsg);
-                //     if( rc != SQLITE_OK ){
-                //         fprintf(stderr, "SQL error: %s\n", zErrMsg);
-                //         sqlite3_free(zErrMsg);
-                //     }
-                // }
-
                 // ------------------- Update stored information
                 // Some kind of insert sql statement to the transactions table
-                std::string sql = std::vformat(transactionInsert,std::make_format_args("NULL", static_cast<long long>(userId), 0, timeNow, "\"User is Online\"", 0));
+                std::string sql = std::format(transactionInsert, "NULL", static_cast<long long>(userId), 0, timeNow, "\"User is Online\"", 0);
                 rc = sqlite3_exec(db, sql.c_str(), NULL, 0, &zErrMsg);
                 if( rc != SQLITE_OK ){
                     fprintf(stderr, "SQL error: %s\n", zErrMsg);
@@ -185,11 +297,109 @@ int main() {
             return 0;
         }, 5);
 
+        // ------------------- Pubg polling timer
+        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &mossadChannel](const dpp::timer& timer){
+            // Populate pubgIdToDiscordUser with the PubgIds we need
+            sqlite3* db{};
+            char *zErrMsg = 0;
+            int rc = sqlite3_open("data/thediscord", &db);
+            std::unordered_map<std::string, dpp::snowflake> pubgIdToDiscordUser {};
+            std::string sql {"SELECT UserId, PubgId FROM Users"};
+            rc = sqlite3_exec(db, sql.c_str(), getPubgIdUserIdHashMapFromRecords, static_cast<void*>(&pubgIdToDiscordUser), &zErrMsg);
+
+            // For each pubgId:
+            // 1. we request /players
+            // 2. compare to the one held in "lastKnownMatch"
+            // 3. populate "pubgIdToMatches" string:set()
+            std::unordered_map<std::string, std::set<std::string>> pubgIdToMatches{};
+            for (const auto& [pubgId, value]: pubgIdToDiscordUser) {
+                cpr::Response playerResponse = cpr::Get(cpr::Url{"https://api.pubg.com/shards/steam/players?filter[playerIds]=" + pubgId},
+                                                        cpr::Header{{"accept", "application/vnd.api+json"}},
+                                                        cpr::Bearer{P_TOKEN});
+                nlohmann::json playerJson {nlohmann::json::parse(playerResponse.text)};
+                nlohmann::json& currMatches {playerJson["data"][0]["relationships"]["matches"]["data"]};
+                
+                if (lastKnownMatches.contains(pubgId)) {
+                    std::string& lkMatch {lastKnownMatches[pubgId]};
+                    if (currMatches[0]["id"]!=lkMatch) {
+                        for (int i{0}; i<currMatches.size(); i++) {
+                            if (currMatches[i]["id"]!=lkMatch) {
+                                pubgIdToMatches[pubgId].insert(currMatches[i]["id"]);
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    lastKnownMatches[pubgId] = currMatches[0]["id"];
+                } else { // This Pubg Id hasn't been processed before we just populate the latest one
+                    if (!currMatches.empty()){
+                        lastKnownMatches[pubgId] = currMatches[3]["id"];
+                    }
+                }
+            }
+            // For each pubgId in "pubgIdToMatches" we iterate through
+            // the matches and build out a "matchIdToPubgId" string:set()
+            std::unordered_map<std::string, std::set<std::string>> matchIdToPubgId {};
+            for (const auto& [pubgId, matchIdSet]: pubgIdToMatches) {
+                for (std::string matchId: matchIdSet) {
+                    matchIdToPubgId[matchId].insert(pubgId);
+                }
+            }
+
+            // For each match in "matchIdToPubgId"
+            // 1. Call the /matches endpoint
+            // 2. Populate a PubgPost struct
+            // 3. Populate PubgPosts, append the post structs to the list
+            std::vector<PubgPost> pubgPosts {};
+            for (const auto& [matchId, pubgIdSet]: matchIdToPubgId) {
+                cpr::Response matchResponse = cpr::Get(cpr::Url{"https://api.pubg.com/shards/steam/matches/"+matchId},
+                                                       cpr::Header{{"accept", "application/vnd.api+json"}});
+                nlohmann::json matchJson {nlohmann::json::parse(matchResponse.text)};
+                nlohmann::json& matchParticipants {matchJson["included"]};
+                if (matchJson["data"]["attributes"]["gameMode"] == "squad-fpp") {
+                    PubgPost currPost {matchJson["data"]["attributes"]["duration"]};
+                    currPost.timestamp = matchJson["data"]["attributes"]["createdAt"];
+                    currPost.mapName = matchJson["data"]["attributes"]["mapName"];
+                    currPost.winPlace = 101;
+                    for (const auto& entity: matchParticipants) {
+                        if (entity["type"] == "participant" and pubgIdSet.contains(entity["attributes"]["stats"]["playerId"])) {
+                            const nlohmann::json& participantStats {entity["attributes"]["stats"]};
+                            PubgPlayerSummary currSummary {
+                                participantStats["name"],
+                                participantStats["kills"],
+                                participantStats["revives"],
+                                participantStats["assists"],
+                                participantStats["longestKill"],
+                                participantStats["damageDealt"]
+                            };
+                            currPost.players[participantStats["playerId"]]=currSummary;
+                            if (participantStats["winPlace"]==1){currPost.isWon=true;}
+                            if (currPost.winPlace > participantStats["winPlace"]){currPost.winPlace=participantStats["winPlace"];}
+                            if (pubgIdSet.size()==currPost.players.size()){break;}
+                        } 
+                    }
+                    pubgPosts.push_back(currPost);
+                }
+            }
+
+            // Sort the posts list
+            // TODO still need to add a time started member variable
+
+            // Create a message for each post in the list
+            std::cout << "we made all the posts i think" <<'\n';
+            for (const PubgPost& pubgPost: pubgPosts) {
+                bot.message_create(getPubgPostMessage(mossadChannel, pubgPost, pubgIdToDiscordUser));
+            }
+
+
+        }, 10);
+
+        // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
+            bot.global_command_create(dpp::slashcommand("register", "Register for aura farming", bot.me.id));
             bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
             bot.global_command_create(dpp::slashcommand("balance", "Check your aura balance", bot.me.id));
         }
-    
     });
 
     // Keeping our presence map up to date

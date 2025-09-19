@@ -4,4 +4,4 @@ find_library(SQLITE_LIBRARIES NAMES "libsqlite3.a" HINTS ${SQLITE_ROOT_DIR})
  
 include(FindPackageHandleStandardArgs)
  
-find_package_handle_standard_args(SQLITE DEFAULT_MSG DPP_LIBRARIES DPP_INCLUDE_DIR)
+find_package_handle_standard_args(SQLITE DEFAULT_MSG SQLITE_LIBRARIES SQLITE_INCLUDE_DIR)
