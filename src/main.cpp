@@ -27,8 +27,8 @@
 #include "cpr/api.h"
 #include "cpr/cprtypes.h"
 #include "json.h"
-#include <functional>
-
+#include "random.h"
+#include "constants.h"
 /*
 So the main functionality of the bot is the tracking stuff, need to make a 10sec/1min/5min loop that
 runs continously, collecting data on the users.
@@ -94,6 +94,24 @@ int getBalanceFromRecords(void* balance, int numberOfColumns, char **recordValue
     return 0;
 }
 
+enum FunFactType{
+    ASSISTANT,
+    DAMAGE,
+    KILLER,
+    LONGEST,
+    REVIVER,
+    RIDER,
+    SWIMMER,
+    WALKER,
+    LOOTER,
+};
+
+struct FunFact{
+    std::string user{};
+    FunFactType type{};
+    double data{};
+};
+
 struct PubgPlayerSummary{
     std::string name{};
     int kills{};
@@ -111,10 +129,45 @@ struct PubgPost{
     std::string mapName{};
     int winPlace{};
     time_t matchStartTime{};
+    FunFact funFact{};
 };
 
 bool pubgPostSorter(PubgPost const& lhs, PubgPost const& rhs) {
 	return lhs.matchStartTime < rhs.matchStartTime;
+}
+
+std::string getEmbedDescriptionString(const PubgPost& pubgPost) {
+    std::string description {std::format("Match went on for {:.1f} minutes, started <t:{}:R>. Top ", pubgPost.duration/60.0f, pubgPost.matchStartTime)};
+    switch (pubgPost.funFact.type) {
+    case ASSISTANT:
+        description+=std::format("assistant was {} with {:.0f} assists.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    case DAMAGE:
+        description+=std::format("damage dealer was {} with {:.1f} damage.", pubgPost.funFact.user, pubgPost.funFact.data);    
+        break;
+    case KILLER:
+        description+=std::format("killer was {} with {:.0f} kills.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    case LONGEST:
+        description+=std::format("distance kill was by {} with {:.1f}m.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    case REVIVER:
+        description+=std::format("medic was {} with {:.0f} revives.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    case RIDER:
+        description+=std::format("driver was {} with {:.1f}m driven.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    case SWIMMER:
+        description+=std::format("swimmer was {} with {:.1f}m swam.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    case WALKER:
+        description+=std::format("walker was {} with {:.1f}m walked.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    case LOOTER:
+        description+=std::format("looter was {} with {:.0f} weapons looted.", pubgPost.funFact.user, pubgPost.funFact.data);
+        break;
+    }
+    return description;
 }
 
 // Returns a pubg message with embed
@@ -145,7 +198,7 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
             .set_title(std::format("#{} Place", pubgPost.winPlace))
             .add_field(
             "Squad FPP",
-            std::format("Match went on for {:.1f} minutes, started <t:{}:R>", pubgPost.duration/60.0f, pubgPost.matchStartTime)
+            getEmbedDescriptionString(pubgPost)
             )
             .add_field(
             "Players",
@@ -181,6 +234,17 @@ int main() {
         {dpp::presence_status::ps_dnd, std::string{"Do not disturb"}},
         {dpp::presence_status::ps_idle, std::string{"Idle"}},
         {dpp::presence_status::ps_invisible, std::string{"Invisible"}},
+    };
+    std::unordered_map<int, std::string> funIndexToApiKey{
+        {0, "assists"},
+        {1, "damageDealt"},
+        {2, "kills"},
+        {3, "longestKill"},
+        {4, "revives"},
+        {5, "rideDistance"},
+        {6, "swimDistance"},
+        {7, "walkDistance"},
+        {8, "weaponsAcquired"},
     };
     std::chrono::system_clock myclock{};
     std::unordered_map<dpp::snowflake, dpp::presence> discordPresences{};
@@ -228,7 +292,7 @@ int main() {
     // 1. User polling
     // 2. Pubg polling
     // And also registers the bot commands
-    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &mossadChannel](const dpp::ready_t& event) {
+    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &mossadChannel, &funIndexToApiKey](const dpp::ready_t& event) {
         
         // ------------------- User polling timer
         bot.start_timer([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies](const dpp::timer& timer){
@@ -320,7 +384,7 @@ int main() {
         }, 5);
 
         // ------------------- Pubg polling timer
-        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &mossadChannel](const dpp::timer& timer){
+        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &mossadChannel, &funIndexToApiKey](const dpp::timer& timer){
             // Populate pubgIdToDiscordUser with the PubgIds we need
             sqlite3* db{};
             char *zErrMsg = 0;
@@ -379,26 +443,40 @@ int main() {
                 nlohmann::json matchJson {nlohmann::json::parse(matchResponse.text)};
                 nlohmann::json& matchParticipants {matchJson["included"]};
                 if (matchJson["data"]["attributes"]["gameMode"] == "squad-fpp") {
-                    PubgPost currPost {matchJson["data"]["attributes"]["duration"]};
+                    PubgPost currPost {};
                     currPost.matchStartTime = UTCStringToTimeT(static_cast<std::string>(matchJson["data"]["attributes"]["createdAt"]).c_str(), "%Y-%m-%dT%H:%M:%SZ");
                     currPost.mapName = matchJson["data"]["attributes"]["mapName"];
                     currPost.winPlace = 101;
+                    int randomFunFactIndex {Random::get(0, constants::LastFunTypeIndex)};
+                    currPost.funFact = {"", static_cast<FunFactType>(randomFunFactIndex), 0}; 
                     for (const auto& entity: matchParticipants) {
-                        if (entity["type"] == "participant" and pubgIdSet.contains(entity["attributes"]["stats"]["playerId"])) {
+                        if (entity["type"] == "participant") {
                             const nlohmann::json& participantStats {entity["attributes"]["stats"]};
-                            PubgPlayerSummary currSummary {
-                                participantStats["name"],
-                                participantStats["kills"],
-                                participantStats["revives"],
-                                participantStats["assists"],
-                                participantStats["longestKill"],
-                                participantStats["damageDealt"]
-                            };
-                            currPost.players[participantStats["playerId"]]=currSummary;
-                            if (participantStats["winPlace"]==1){currPost.isWon=true;}
-                            if (currPost.winPlace > participantStats["winPlace"]){currPost.winPlace=participantStats["winPlace"];}
-                            if (pubgIdSet.size()==currPost.players.size()){break;}
-                        } 
+                            // Get our fun fact data
+                            if (participantStats[funIndexToApiKey[randomFunFactIndex]]>currPost.funFact.data){
+                                currPost.funFact.data=participantStats[funIndexToApiKey[randomFunFactIndex]];
+                                if (pubgIdSet.contains(entity["attributes"]["stats"]["playerId"])){
+                                    currPost.funFact.user=std::format("<@{}>", pubgIdToDiscordUser[entity["attributes"]["stats"]["playerId"]].str());
+                                } else {
+                                    currPost.funFact.user=participantStats["name"];
+                                }
+                            }
+                            // Get our target player data
+                            if (pubgIdSet.contains(entity["attributes"]["stats"]["playerId"])){
+                                currPost.duration=std::max(currPost.duration, static_cast<int>(participantStats["timeSurvived"]));
+                                PubgPlayerSummary currSummary {
+                                    participantStats["name"],
+                                    participantStats["kills"],
+                                    participantStats["revives"],
+                                    participantStats["assists"],
+                                    participantStats["longestKill"],
+                                    participantStats["damageDealt"]
+                                };
+                                currPost.players[participantStats["playerId"]]=currSummary;
+                                if (participantStats["winPlace"]==1){currPost.isWon=true;}
+                                if (currPost.winPlace > participantStats["winPlace"]){currPost.winPlace=participantStats["winPlace"];}
+                            }
+                        }
                     }
                     pubgPosts.push_back(currPost);
                 }
