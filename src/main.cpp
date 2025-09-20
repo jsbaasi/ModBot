@@ -484,9 +484,7 @@ int main() {
 
             // Sort the posts list
             std::sort(pubgPosts.begin(), pubgPosts.end(), &pubgPostSorter);
-            for (int i{}; i<pubgPosts.size(); i++) {
-                std::cout << pubgPosts[i].matchStartTime <<'\n';
-            }
+
             // Create a message for each post in the list
             std::cout << "we finished checking all player's match delta" <<'\n';
             for (const PubgPost& pubgPost: pubgPosts) {
