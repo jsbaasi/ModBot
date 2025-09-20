@@ -1,7 +1,7 @@
 # set(DPP_ROOT_DIR "/usr/local/lib")
-find_path(DPP_INCLUDE_DIR NAMES dpp.h HINTS ${DPP_ROOT_DIR} PATHS "/usr/include/dpp")
+find_path(DPP_INCLUDE_DIR NAMES dpp.h HINTS ${DPP_ROOT_DIR} PATHS "/usr/local/include/dpp")
  
-find_library(DPP_LIBRARIES NAMES libdpp.so dpp "libdpp.a" HINTS ${DPP_ROOT_DIR} PATHS "/usr/lib")
+find_library(DPP_LIBRARIES NAMES libdpp.so dpp "libdpp.a" HINTS ${DPP_ROOT_DIR} PATHS "/usr/local/lib/")
  
 include(FindPackageHandleStandardArgs)
  

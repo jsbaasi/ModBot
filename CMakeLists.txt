@@ -38,6 +38,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+
 # set(CMAKE_CXX_COMPILER /usr/local/bin/clang++)
 # set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-install-dir=/usr/local/lib/gcc/x86_64-pc-linux-gnu/15.2.0/ --std=c++20 -rtlib=libgcc -unwindlib=libgcc")

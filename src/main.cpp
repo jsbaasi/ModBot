@@ -138,36 +138,37 @@ bool pubgPostSorter(PubgPost const& lhs, PubgPost const& rhs) {
 
 std::string getEmbedDescriptionString(const PubgPost& pubgPost) {
     std::string description {std::format("Match went on for {:.1f} minutes, started <t:{}:R>. Top ", pubgPost.duration/60.0f, pubgPost.matchStartTime)};
+    std::string funFact{};
     switch (pubgPost.funFact.type) {
     case ASSISTANT:
-        description+=std::format("assistant was {} with {:.0f} assists.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "assistant was {} with {:.0f} assists.";
         break;
     case DAMAGE:
-        description+=std::format("damage dealer was {} with {:.1f} damage.", pubgPost.funFact.user, pubgPost.funFact.data);    
+        funFact = "damage dealer was {} with {:.1f} damage.";    
         break;
     case KILLER:
-        description+=std::format("killer was {} with {:.0f} kills.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "killer was {} with {:.0f} kills.";
         break;
     case LONGEST:
-        description+=std::format("distance kill was by {} with {:.1f}m.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "distance kill was by {} with {:.1f}m.";
         break;
     case REVIVER:
-        description+=std::format("medic was {} with {:.0f} revives.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "medic was {} with {:.0f} revives.";
         break;
     case RIDER:
-        description+=std::format("driver was {} with {:.1f}m driven.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "driver was {} with {:.1f}m driven.";
         break;
     case SWIMMER:
-        description+=std::format("swimmer was {} with {:.1f}m swam.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "swimmer was {} with {:.1f}m swam.";
         break;
     case WALKER:
-        description+=std::format("walker was {} with {:.1f}m walked.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "car-less fucker was {} with {:.1f}m walked.";
         break;
     case LOOTER:
-        description+=std::format("looter was {} with {:.0f} weapons looted.", pubgPost.funFact.user, pubgPost.funFact.data);
+        funFact = "loot goblin was {} with {:.0f} weapons looted.";
         break;
     }
-    return description;
+    return description+std::vformat(funFact, std::make_format_args(pubgPost.funFact.user, pubgPost.funFact.data));
 }
 
 // Returns a pubg message with embed
@@ -225,7 +226,6 @@ int main() {
     std::string P_TOKEN{};
     pTokenStream >> P_TOKEN;
     pTokenStream.close();
-    constexpr dpp::snowflake mossadChannel {1407116920288710726};
     dpp::cluster bot(D_TOKEN, dpp::intents::i_default_intents | dpp::intents::i_guild_presences);
     bot.on_log(dpp::utility::cout_logger());
     std::unordered_map<dpp::presence_status, std::string> presenceStatusToString{
@@ -292,7 +292,7 @@ int main() {
     // 1. User polling
     // 2. Pubg polling
     // And also registers the bot commands
-    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &mossadChannel, &funIndexToApiKey](const dpp::ready_t& event) {
+    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey](const dpp::ready_t& event) {
         
         // ------------------- User polling timer
         bot.start_timer([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies](const dpp::timer& timer){
@@ -384,7 +384,7 @@ int main() {
         }, 5);
 
         // ------------------- Pubg polling timer
-        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &mossadChannel, &funIndexToApiKey](const dpp::timer& timer){
+        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey](const dpp::timer& timer) -> dpp::task<void>{
             // Populate pubgIdToDiscordUser with the PubgIds we need
             sqlite3* db{};
             char *zErrMsg = 0;
@@ -484,15 +484,15 @@ int main() {
 
             // Sort the posts list
             std::sort(pubgPosts.begin(), pubgPosts.end(), &pubgPostSorter);
-
+            for (int i{}; i<pubgPosts.size(); i++) {
+                std::cout << pubgPosts[i].matchStartTime <<'\n';
+            }
             // Create a message for each post in the list
             std::cout << "we finished checking all player's match delta" <<'\n';
             for (const PubgPost& pubgPost: pubgPosts) {
-                bot.message_create(getPubgPostMessage(mossadChannel, pubgPost, pubgIdToDiscordUser));
+                co_await bot.co_message_create(getPubgPostMessage(constants::JBBChannel, pubgPost, pubgIdToDiscordUser));
             }
-
-
-        }, 10);
+        }, 5);
 
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
