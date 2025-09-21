@@ -132,10 +132,6 @@ struct PubgPost{
     FunFact funFact{};
 };
 
-bool pubgPostSorter(PubgPost const& lhs, PubgPost const& rhs) {
-	return lhs.matchStartTime < rhs.matchStartTime;
-}
-
 std::string getEmbedDescriptionString(const PubgPost& pubgPost) {
     std::string description {std::format("Match went on for {:.1f} minutes, started <t:{}:R>. Top ", pubgPost.duration/60.0f, pubgPost.matchStartTime)};
     std::string funFact{};
@@ -190,7 +186,7 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
     std::string statsString {};
     for (const auto& [pubgId,pubgPlayerSummary]: pubgPost.players) {
         playerString+=std::format("<@{}>\n", pubgIdToDiscordUser[pubgId].str());
-        statsString+=std::format("K:{}-R:{}-A:{}-LK:{:.1f}m-D:{:.1f}\n", pubgPlayerSummary.kills, pubgPlayerSummary.revives, pubgPlayerSummary.assists, pubgPlayerSummary.longestKill, pubgPlayerSummary.damageDealt);
+        statsString+=std::format("K:{}-R:{}-A:{}-LK:{:.1f}m-D:{:.1f}\n------\n", pubgPlayerSummary.kills, pubgPlayerSummary.revives, pubgPlayerSummary.assists, pubgPlayerSummary.longestKill, pubgPlayerSummary.damageDealt);
     }
 
     resEmbed.set_author("JJB", "https://jsbaasi.github.io/", "attachment://jjbLogo.png")
@@ -283,7 +279,7 @@ int main() {
             if (users.contains(event.command.get_issuing_user().id)) {
                 event.reply("You are already registered in the bot");
             } else {
-                event.reply("putting you in the table twin");
+                event.reply("putting you in the table twin (i'm not)");
             }
         }
     });
@@ -483,20 +479,19 @@ int main() {
             }
 
             // Sort the posts list
-            std::sort(pubgPosts.begin(), pubgPosts.end(), &pubgPostSorter);
+            std::sort(pubgPosts.begin(), pubgPosts.end(),[](PubgPost const& lhs, PubgPost const& rhs){return lhs.matchStartTime < rhs.matchStartTime;});
 
             // Create a message for each post in the list
-            std::cout << "we finished checking all player's match delta" <<'\n';
             for (const PubgPost& pubgPost: pubgPosts) {
                 co_await bot.co_message_create(getPubgPostMessage(constants::JBBChannel, pubgPost, pubgIdToDiscordUser));
             }
-        }, 5);
+        }, 30);
 
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
             bot.global_command_create(dpp::slashcommand("register", "Register for aura farming", bot.me.id));
-            bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
             bot.global_command_create(dpp::slashcommand("balance", "Check your aura balance", bot.me.id));
+            bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
         }
     });
 
