@@ -7,12 +7,14 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Create an executable
 add_executable(${PROJECT_NAME}
+    src/progress.pb.cc
     src/main.cpp
 )
 
 # Find our pre-installed packages (using cmake/).
 find_package(DPP REQUIRED)
 find_package(SQLITE REQUIRED)
+find_package(Protobuf REQUIRED)
 include(FetchContent)
 FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git
                          GIT_TAG 1.11.x) # The commit hash for 1.11.x. Replace with the latest from: https://github.com/libcpr/cpr/releases
@@ -21,6 +23,7 @@ FetchContent_MakeAvailable(cpr)
 # Link the pre-installed DPP package.
 target_link_libraries(${PROJECT_NAME}
     PRIVATE cpr::cpr
+    protobuf::libprotobuf
     ${DPP_LIBRARIES}
     ${SQLITE_LIBRARIES}
 )

@@ -15,10 +15,12 @@
 #include <unordered_map>
 #include <vector>
 #include <format>
+#include "appcommand.h"
 #include "colors.h"
 #include "daily.h"
 #include "guild.h"
 #include "message.h"
+#include "misc-enum.h"
 #include "nlohmann/json_fwd.hpp"
 #include "user.h"
 #include <stdlib.h>
@@ -29,6 +31,9 @@
 #include "json.h"
 #include "random.h"
 #include "constants.h"
+#include "utility.h"
+#include "progress.pb.h"
+
 /*
 So the main functionality of the bot is the tracking stuff, need to make a 10sec/1min/5min loop that
 runs continously, collecting data on the users.
@@ -268,6 +273,7 @@ int main() {
             } else {
                 event.reply(std::format("Your aura balance is {}", balance));
             }
+            sqlite3_close(db);
         }
         if (event.command.get_command_name() == "register") {
             sqlite3* db{};
@@ -281,6 +287,33 @@ int main() {
             } else {
                 event.reply("putting you in the table twin (i'm not)");
             }
+            sqlite3_close(db);
+        }
+        if (event.command.get_command_name() == "inventory") {
+            sqlite3* db {};
+            int rc = sqlite3_open("data/thediscord", &db);
+            char *errmsg{};
+            std::string sql {std::format("SELECT Progress FROM Users WHERE UserId = {};", event.command.get_issuing_user().id.str())};
+            bot::Progress progress{};
+            sqlite3_stmt* myStmt{};
+            sqlite3_prepare(db, sql.c_str(), -1, &myStmt, NULL);
+            rc = sqlite3_step(myStmt);
+            if (!(rc==SQLITE_DONE || rc==SQLITE_ROW)) {
+                event.reply("Error occured");
+                return;
+            }
+            progress.ParseFromArray(sqlite3_column_blob(myStmt, 0), sqlite3_column_bytes(myStmt, 0));
+            if (progress.has_inventory() and progress.inventory().items_size()!=0) {
+                std::string reply {"Your inventory: "};
+                for (const bot::Item& item : progress.inventory().items()) {
+                    reply+=item.id();
+                }
+                event.reply(reply);
+            } else {
+                event.reply("Inventory is empty");
+            }
+            sqlite3_finalize(myStmt);
+            sqlite3_close(db);
         }
     });
 
@@ -322,14 +355,6 @@ int main() {
             if( rc != SQLITE_OK ) {
                 std::cout << stderr << "SQL error: " << zErrMsg << '\n';
                 sqlite3_free(zErrMsg);
-            }
-            for (const dpp::snowflake& userId: users) {
-                if (userId == static_cast<dpp::snowflake>(310692287191580674)){
-                    nlohmann::json jsbaasi = discordPresences[userId].to_json();
-                    std::ofstream outf{ "status.txt" };
-                    outf << jsbaasi;
-                }
-
             }
             
             // ------------------- For each user, check dailies and update stored information
@@ -377,7 +402,7 @@ int main() {
             //     std::cout << "user id " << k << " presence " << presenceStatusToString[v.status()] << '\n';
             // }
             return 0;
-        }, 5);
+        }, 10);
 
         // ------------------- Pubg polling timer
         bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey](const dpp::timer& timer) -> dpp::task<void>{
@@ -398,6 +423,7 @@ int main() {
                 cpr::Response playerResponse = cpr::Get(cpr::Url{"https://api.pubg.com/shards/steam/players?filter[playerIds]=" + pubgId},
                                                         cpr::Header{{"accept", "application/vnd.api+json"}},
                                                         cpr::Bearer{P_TOKEN});
+                if (playerResponse.status_code!=200) {continue;}
                 nlohmann::json playerJson {nlohmann::json::parse(playerResponse.text)};
                 nlohmann::json& currMatches {playerJson["data"][0]["relationships"]["matches"]["data"]};
                 
@@ -436,6 +462,7 @@ int main() {
             for (const auto& [matchId, pubgIdSet]: matchIdToPubgId) {
                 cpr::Response matchResponse = cpr::Get(cpr::Url{"https://api.pubg.com/shards/steam/matches/"+matchId},
                                                        cpr::Header{{"accept", "application/vnd.api+json"}});
+                if (matchResponse.status_code!=200) {continue;}
                 nlohmann::json matchJson {nlohmann::json::parse(matchResponse.text)};
                 nlohmann::json& matchParticipants {matchJson["included"]};
                 if (matchJson["data"]["attributes"]["gameMode"] == "squad-fpp") {
@@ -480,18 +507,20 @@ int main() {
 
             // Sort the posts list
             std::sort(pubgPosts.begin(), pubgPosts.end(),[](PubgPost const& lhs, PubgPost const& rhs){return lhs.matchStartTime < rhs.matchStartTime;});
-
+            bot.log(dpp::loglevel::ll_info, "Finished PUBG polling function");
             // Create a message for each post in the list
             for (const PubgPost& pubgPost: pubgPosts) {
                 co_await bot.co_message_create(getPubgPostMessage(constants::JBBChannel, pubgPost, pubgIdToDiscordUser));
             }
-        }, 30);
+            sqlite3_close(db);
+        }, 600);
 
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
             bot.global_command_create(dpp::slashcommand("register", "Register for aura farming", bot.me.id));
             bot.global_command_create(dpp::slashcommand("balance", "Check your aura balance", bot.me.id));
             bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
+            bot.global_command_create(dpp::slashcommand("inventory", "View your inventory", bot.me.id));
         }
     });
 

@@ -1,8 +1,10 @@
+  Some prerequisites:
+  - sudo apt install zlib1g-dev
+  - sudo apt install libssl-dev
   - sudo apt install libopus0
-  - Install dpp with the deb file:
-  - apt install wget
-  - wget -O dpp.deb https://dl.dpp.dev/
-  - dpkg -i dpp.deb
+  - Clone libdpp, build from source
+  - Wget sqlite amalgamation config version, extract, ./configure, make, make install
+  Then:
   - `git clone`
   - Create build dir in root dir
   - Navigate to build, run `cmake ..`
