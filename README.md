@@ -11,3 +11,7 @@
   - Navigate to root, run `cmake --build build`
   - Download sqlite amalgamation, `make` and then `make install`
   - Add token to mytoken.txt in src/ directory
+
+  To build on laptop server:
+  - `git fetch` then `git reset --hard origin/main`
+  - Get rid of the cmakelists line that specifies the cxx compiler flags
