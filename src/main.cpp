@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <dpp/dispatcher.h>
 #include <dpp/intents.h>
@@ -218,7 +219,19 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
     return resMessage;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    if (argc != 2 || (strcmp(argv[1], "dev")!=0 && strcmp(argv[1], "prod")!=0)) {
+        std::cerr << "Usage:  " << argv[0] << " dev/prod\n";
+        return -1;
+    }
+    const dpp::snowflake* JBBChannel{};
+
+    if (strcmp(argv[1], "dev")==0) {
+        JBBChannel = &constants::JBBChannelDev;
+    } else {
+        JBBChannel = &constants::JBBChannelProd;
+    }
+
     std::ifstream dTokenStream{ "src/dtoken.txt" };
     std::string D_TOKEN{};
     dTokenStream >> D_TOKEN;
@@ -321,7 +334,7 @@ int main() {
     // 1. User polling
     // 2. Pubg polling
     // And also registers the bot commands
-    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey](const dpp::ready_t& event) {
+    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel](const dpp::ready_t& event) {
         
         // ------------------- User polling timer
         bot.start_timer([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies](const dpp::timer& timer){
@@ -405,7 +418,7 @@ int main() {
         }, 10);
 
         // ------------------- Pubg polling timer
-        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey](const dpp::timer& timer) -> dpp::task<void>{
+        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel](const dpp::timer& timer) -> dpp::task<void>{
             // Populate pubgIdToDiscordUser with the PubgIds we need
             sqlite3* db{};
             char *zErrMsg = 0;
@@ -510,7 +523,7 @@ int main() {
             bot.log(dpp::loglevel::ll_info, "Finished PUBG polling function");
             // Create a message for each post in the list
             for (const PubgPost& pubgPost: pubgPosts) {
-                co_await bot.co_message_create(getPubgPostMessage(constants::JBBChannel, pubgPost, pubgIdToDiscordUser));
+                co_await bot.co_message_create(getPubgPostMessage(*JBBChannel, pubgPost, pubgIdToDiscordUser));
             }
             sqlite3_close(db);
         }, 600);
