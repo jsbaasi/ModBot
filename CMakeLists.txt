@@ -41,11 +41,5 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
+# set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-install-dir=/usr/local/lib/gcc/x86_64-pc-linux-gnu/15.2.0/ --std=c++20 -rtlib=libgcc -unwindlib=libgcc")
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
-
-# set(CMAKE_CXX_COMPILER /usr/local/bin/clang++)
-# set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-install-dir=/usr/local/lib/gcc/x86_64-pc-linux-gnu/15.2.0/ --std=c++20 -rtlib=libgcc -unwindlib=libgcc")
-# set(CMAKE_CXX_LINK_EXECUTABLE "/usr/local/bin/clang++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET>")
-# set(CMAKE_LINKER_TYPE LLD)
-# CC=/usr/bin/gcc CXX=/home/jsbaasi/Coding/llvm/llvm-project/build/bin/clang++ cmake -B build set it when configuring instead of setting it in this cmakelists file
