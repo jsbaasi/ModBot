@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <bits/chrono.h>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -13,6 +14,7 @@
 #include <string>
 #include <sqlite3.h>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 #include <format>
@@ -334,10 +336,10 @@ int main(int argc, char* argv[]) {
     // 1. User polling
     // 2. Pubg polling
     // And also registers the bot commands
-    bot.on_ready([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel](const dpp::ready_t& event) {
+    bot.on_ready([&](const dpp::ready_t& event) {
         
         // ------------------- User polling timer
-        bot.start_timer([&bot, &discordPresences, &presenceStatusToString, &myclock, &userDailies](const dpp::timer& timer){
+        bot.start_timer([&](const dpp::timer& timer){
             // bot.request("https://dpp.dev/DPP-Logo.png", dpp::m_get, [&bot](const dpp::http_request_completion_t& callback) {
             //     bot.message_create(dpp::message(1407116920288710726, "").add_file("image.png", callback.body));
             // });
@@ -394,7 +396,7 @@ int main(int argc, char* argv[]) {
                 // ------------------- Finally update what we collected from dailies
                 if (userBalanceChange>0) {
                     constexpr std::string_view balanceUpdate = "UPDATE Users SET Balance = Balance + {} WHERE UserId = {};";
-                    std::string sql = std::format(balanceUpdate, userBalanceChange, static_cast<long long>(userId));
+                    std::string sql = std::format(balanceUpdate, userBalanceChange, userId.str());
                     rc = sqlite3_exec(db, sql.c_str(), NULL, 0, &zErrMsg);
                 }
 
@@ -411,14 +413,11 @@ int main(int argc, char* argv[]) {
 
             // ------------------- Close out sql stuff DONE
             sqlite3_close(db);
-            // for (const auto& [k,v]: discordPresences) {
-            //     std::cout << "user id " << k << " presence " << presenceStatusToString[v.status()] << '\n';
-            // }
             return 0;
         }, 10);
 
         // ------------------- Pubg polling timer
-        bot.start_timer([&bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel](const dpp::timer& timer) -> dpp::task<void>{
+        bot.start_timer([&](const dpp::timer& timer) -> dpp::task<void>{
             // Populate pubgIdToDiscordUser with the PubgIds we need
             sqlite3* db{};
             char *zErrMsg = 0;
@@ -454,9 +453,10 @@ int main(int argc, char* argv[]) {
                     lastKnownMatches[pubgId] = currMatches[0]["id"];
                 } else { // This Pubg Id hasn't been processed before we just populate the latest one
                     if (!currMatches.empty()){
-                        lastKnownMatches[pubgId] = currMatches[3]["id"];
+                        lastKnownMatches[pubgId] = currMatches[0]["id"];
                     }
                 }
+                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
             }
             // For each pubgId in "pubgIdToMatches" we iterate through
             // the matches and build out a "matchIdToPubgId" string:set()
@@ -467,11 +467,14 @@ int main(int argc, char* argv[]) {
                 }
             }
 
+            
             // For each match in "matchIdToPubgId"
             // 1. Call the /matches endpoint
             // 2. Populate a PubgPost struct
             // 3. Populate PubgPosts, append the post structs to the list
+            // 4. Calculate how much aura we add
             std::vector<PubgPost> pubgPosts {};
+            std::unordered_map<std::string, int> auraDelta{};
             for (const auto& [matchId, pubgIdSet]: matchIdToPubgId) {
                 cpr::Response matchResponse = cpr::Get(cpr::Url{"https://api.pubg.com/shards/steam/matches/"+matchId},
                                                        cpr::Header{{"accept", "application/vnd.api+json"}});
@@ -498,7 +501,7 @@ int main(int argc, char* argv[]) {
                                 }
                             }
                             // Get our target player data
-                            if (pubgIdSet.contains(entity["attributes"]["stats"]["playerId"])){
+                            if (pubgIdSet.contains(participantStats["playerId"])){
                                 currPost.duration=std::max(currPost.duration, static_cast<int>(participantStats["timeSurvived"]));
                                 PubgPlayerSummary currSummary {
                                     participantStats["name"],
@@ -511,6 +514,7 @@ int main(int argc, char* argv[]) {
                                 currPost.players[participantStats["playerId"]]=currSummary;
                                 if (participantStats["winPlace"]==1){currPost.isWon=true;}
                                 if (currPost.winPlace > participantStats["winPlace"]){currPost.winPlace=participantStats["winPlace"];}
+                                auraDelta[participantStats["playerId"]] += static_cast<int>(participantStats["revives"]) + static_cast<int>(participantStats["kills"]);
                             }
                         }
                     }
@@ -524,6 +528,15 @@ int main(int argc, char* argv[]) {
             // Create a message for each post in the list
             for (const PubgPost& pubgPost: pubgPosts) {
                 co_await bot.co_message_create(getPubgPostMessage(*JBBChannel, pubgPost, pubgIdToDiscordUser));
+            }
+            
+            long long timeNow = std::chrono::duration_cast<std::chrono::milliseconds>((myclock.now()).time_since_epoch()).count();
+            // Update the aura for each pubgId in auraDelta
+            for (const auto& [pubgId, auraDelta]: auraDelta) {
+                std::string discordId {pubgIdToDiscordUser[pubgId].str()};
+                sqlite3_exec(db, std::format("UPDATE Users SET Balance = Balance + {} WHERE UserId = {};", auraDelta, discordId).c_str(), NULL, NULL, &zErrMsg);
+                constexpr std::string_view transactionInsert = "INSERT INTO Transactions (TransactionId,UserId,BalanceDelta,Time,TransactionDescription,TransactionType) VALUES ({}, {}, {}, {}, {}, {});";
+                sqlite3_exec(db, std::format(transactionInsert, "NULL", discordId, auraDelta, timeNow, "\"PUBG Match\"", 2).c_str(), NULL, NULL, &zErrMsg);
             }
             sqlite3_close(db);
         }, 600);
