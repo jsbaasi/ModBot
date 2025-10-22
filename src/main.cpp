@@ -76,7 +76,7 @@ time_t UTCStringToTimeT(const char* timestr, const char* fmtstr) {
 	return mktime(&t);
 }
 
-int getUserIdArrayFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+int fillUserIdArrayFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
     for(int i{0}; i<numberOfColumns; i++){
         if (strcmp(columnNames[i],"UserId")==0) {
             static_cast<std::vector<dpp::snowflake>*>(users)->push_back(static_cast<dpp::snowflake>(std::strtoull(recordValues[i], NULL, 10)));
@@ -86,19 +86,29 @@ int getUserIdArrayFromRecords(void* users, int numberOfColumns, char **recordVal
     return 0;
 }
 
-int getPubgIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+int fillBirthdayArrayFromRecords(void* birthdays, int numberOfColumns, char **recordValues, char **columnNames) {
+    static_cast<std::vector<std::string>*>(birthdays)->push_back(recordValues[0]);
+    return 0;
+}
+
+int fillPubgIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
     // I'm casting the void pointer to map, then dereferencing it to use the operator[]
     static_cast<std::unordered_map<std::string, dpp::snowflake>*>(users)->operator[](recordValues[1]) = recordValues[0];
     return 0;
 }
 
-int getUserIdSetFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+int fillUserIdSetFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
     static_cast<std::set<dpp::snowflake>*>(users)->insert(static_cast<dpp::snowflake>(std::strtoull(recordValues[0], NULL, 10)));
     return 0;
 }
 
-int getBalanceFromRecords(void* balance, int numberOfColumns, char **recordValues, char **columnNames){
+int fillBalanceFromRecords(void* balance, int numberOfColumns, char **recordValues, char **columnNames){
     *static_cast<int*>(balance) = atoi(recordValues[0]);
+    return 0;
+}
+
+int fillUserIdFromBirthday(void* userId, int numberOfColumns, char **recordValues, char **columnNames){
+    *static_cast<std::string*>(userId) = recordValues[0];
     return 0;
 }
 
@@ -227,14 +237,16 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     const dpp::snowflake* JBBChannel{};
+    std::ifstream dTokenStream{};
 
     if (strcmp(argv[1], "dev")==0) {
         JBBChannel = &constants::JBBChannelDev;
+        dTokenStream.open("src/ddevtoken.txt");
     } else {
         JBBChannel = &constants::JBBChannelProd;
+        dTokenStream.open("src/dprodtoken.txt");
     }
 
-    std::ifstream dTokenStream{ "src/dtoken.txt" };
     std::string D_TOKEN{};
     dTokenStream >> D_TOKEN;
     dTokenStream.close();
@@ -282,7 +294,7 @@ int main(int argc, char* argv[]) {
             }
             constexpr std::string_view balanceSelect = "SELECT Balance FROM Users WHERE UserId={};";
             std::string sql = std::format(balanceSelect, static_cast<long long>(event.command.get_issuing_user().id));
-            rc = sqlite3_exec(db, sql.c_str(), getBalanceFromRecords, static_cast<void*>(&balance), &zErrMsg);
+            rc = sqlite3_exec(db, sql.c_str(), fillBalanceFromRecords, static_cast<void*>(&balance), &zErrMsg);
             if (balance==-1) {
                 event.reply("You are not registered in the bot's database");
             } else {
@@ -296,7 +308,7 @@ int main(int argc, char* argv[]) {
             int rc = sqlite3_open("data/thediscord", &db);
             std::set<dpp::snowflake> users {};
             std::string sql = "SELECT UserId FROM Users;";
-            rc = sqlite3_exec(db, sql.c_str(), getUserIdSetFromRecords, static_cast<void*>(&users), &zErrMsg);
+            rc = sqlite3_exec(db, sql.c_str(), fillUserIdSetFromRecords, static_cast<void*>(&users), &zErrMsg);
             if (users.contains(event.command.get_issuing_user().id)) {
                 event.reply("You are already registered in the bot");
             } else {
@@ -328,6 +340,77 @@ int main(int argc, char* argv[]) {
                 event.reply("Inventory is empty");
             }
             sqlite3_finalize(myStmt);
+            sqlite3_close(db);
+        }
+        if (event.command.get_command_name() == "birthday") {
+            sqlite3* db {};
+            int rc = sqlite3_open("data/thediscord", &db);
+            char *errmsg{};
+            std::string sql {"SELECT Birthday FROM Users;"};
+            std::vector<std::string> birthdays{};
+            rc = sqlite3_exec(db, sql.c_str(), fillBirthdayArrayFromRecords, static_cast<void*>(&birthdays), &errmsg);
+            // Get current timestamp as std::tm struct, respect to local time
+            const std::time_t nowTT{ std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())};
+            std::tm nowTM {*localtime(&nowTT)};
+            // Fill array of std::tm structs with the birthday timestamp strings. Initialise the std::tm struct
+            // with local time
+            std::vector<std::tm> birthdayTimeArray{};
+            for (std::string birthday: birthdays) {
+                std::chrono::duration<int> d{ std::stoi(birthday) };
+                std::time_t tt{ std::chrono::system_clock::to_time_t(std::chrono::time_point<std::chrono::system_clock>{d})};
+                std::tm tm {*localtime(&tt)};
+                birthdayTimeArray.push_back(tm);
+            }
+            // Sort the birthday std::tm structs
+            std::sort(birthdayTimeArray.begin(), birthdayTimeArray.end(), [](std::tm const& lhs, std::tm const& rhs){
+                return lhs.tm_yday < rhs.tm_yday;
+            });
+            // Binary search for which 2 birthdays std::tm are either side of right now std::tm
+            int length{static_cast<int>(birthdayTimeArray.size())};
+            int l{0}, r{static_cast<int>(length-1)}, m{};
+            int leftDate{}, rightDate{};
+            bool startYear{false}, endYear{false};
+            // left conditional, left date should be last year, right conditional right date should be next year
+            if (nowTM.tm_yday<=birthdayTimeArray[0].tm_yday) {
+                leftDate = length-1;
+                rightDate = 0;
+                startYear = true;
+            } else if (nowTM.tm_yday>birthdayTimeArray[length-1].tm_yday) {
+                leftDate = length-1;
+                rightDate = 0;
+                endYear = true;
+            } else {
+                while (l<=r) {
+                    int m{(l+r)/2};
+                    if (nowTM.tm_yday>birthdayTimeArray[m].tm_yday) {
+                        leftDate = m;
+                        l = m+1;
+                    } else {
+                        r = m-1;
+                    }
+                }
+                rightDate = leftDate+1;
+            }
+            // Turn the left and right std:tm to timestamps, then we search up in the database
+            std::time_t leftStamp{mktime(&birthdayTimeArray[leftDate])}, rightStamp{mktime(&birthdayTimeArray[rightDate])};
+            // Search up for the users in the database
+            std::string leftUserId{}, rightUserId{};
+            sqlite3_exec(db, std::format("SELECT UserId FROM Users WHERE Birthday = {};", leftStamp).c_str(), fillUserIdFromBirthday, static_cast<void*>(&leftUserId), &errmsg);
+            sqlite3_exec(db, std::format("SELECT UserId FROM Users WHERE Birthday = {};", rightStamp).c_str(), fillUserIdFromBirthday, static_cast<void*>(&rightUserId), &errmsg);
+            // Then we set the appropriate years for the timestamps
+            if (startYear) {
+                birthdayTimeArray[leftDate].tm_year = nowTM.tm_year-1;
+                birthdayTimeArray[rightDate].tm_year = nowTM.tm_year;
+            } else if (endYear) {
+                birthdayTimeArray[leftDate].tm_year = nowTM.tm_year;
+                birthdayTimeArray[rightDate].tm_year = nowTM.tm_year+1;
+            } else {
+                birthdayTimeArray[leftDate].tm_year = nowTM.tm_year;
+                birthdayTimeArray[rightDate].tm_year = nowTM.tm_year;
+            }
+            leftStamp = mktime(&birthdayTimeArray[leftDate]);
+            rightStamp = mktime(&birthdayTimeArray[rightDate]);
+            event.reply(std::format("<@{}> birthday past <t:{}:R>. Next is <@{}> birthday <t:{}:R>", leftUserId, leftStamp, rightUserId, rightStamp));
             sqlite3_close(db);
         }
     });
@@ -366,7 +449,7 @@ int main(int argc, char* argv[]) {
             std::vector<dpp::snowflake> users {};
             std::string sql = "SELECT * from Users";
             constexpr std::string_view transactionInsert = "INSERT INTO Transactions (TransactionId,UserId,BalanceDelta,Time,TransactionDescription,TransactionType) VALUES ({}, {}, {}, {}, {}, {});";
-            rc = sqlite3_exec(db, sql.c_str(), getUserIdArrayFromRecords, static_cast<void*>(&users), &zErrMsg);
+            rc = sqlite3_exec(db, sql.c_str(), fillUserIdArrayFromRecords, static_cast<void*>(&users), &zErrMsg);
             if( rc != SQLITE_OK ) {
                 std::cout << stderr << "SQL error: " << zErrMsg << '\n';
                 sqlite3_free(zErrMsg);
@@ -424,7 +507,7 @@ int main(int argc, char* argv[]) {
             int rc = sqlite3_open("data/thediscord", &db);
             std::unordered_map<std::string, dpp::snowflake> pubgIdToDiscordUser {};
             std::string sql {"SELECT UserId, PubgId FROM Users"};
-            rc = sqlite3_exec(db, sql.c_str(), getPubgIdUserIdHashMapFromRecords, static_cast<void*>(&pubgIdToDiscordUser), &zErrMsg);
+            rc = sqlite3_exec(db, sql.c_str(), fillPubgIdUserIdHashMapFromRecords, static_cast<void*>(&pubgIdToDiscordUser), &zErrMsg);
 
             // For each pubgId:
             // 1. we request /players
@@ -514,7 +597,7 @@ int main(int argc, char* argv[]) {
                                 currPost.players[participantStats["playerId"]]=currSummary;
                                 if (participantStats["winPlace"]==1){currPost.isWon=true;}
                                 if (currPost.winPlace > participantStats["winPlace"]){currPost.winPlace=participantStats["winPlace"];}
-                                auraDelta[participantStats["playerId"]] += static_cast<int>(participantStats["revives"]) + static_cast<int>(participantStats["kills"]);
+                                auraDelta[participantStats["playerId"]] += (static_cast<int>(participantStats["revives"])*3) + static_cast<int>(participantStats["kills"]);
                             }
                         }
                     }
@@ -547,6 +630,7 @@ int main(int argc, char* argv[]) {
             bot.global_command_create(dpp::slashcommand("balance", "Check your aura balance", bot.me.id));
             bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
             bot.global_command_create(dpp::slashcommand("inventory", "View your inventory", bot.me.id));
+            bot.global_command_create(dpp::slashcommand("birthday", "Who's birthday is next", bot.me.id));
         }
     });
 

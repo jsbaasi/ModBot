@@ -2,5 +2,7 @@ build/
 data/
 .vscode/
 src/ptoken.txt
-src/dtoken.txt
+src/ddevtoken.txt
+src/dprodtoken.txt
 .cache/
+ideas.txt
