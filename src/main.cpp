@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <bits/chrono.h>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -503,10 +504,11 @@ int main(int argc, char* argv[]) {
         bot.start_timer([&](const dpp::timer& timer) -> dpp::task<void>{
             // Populate pubgIdToDiscordUser with the PubgIds we need
             sqlite3* db{};
-            char *zErrMsg = 0;
+            char *zErrMsg{};
             int rc = sqlite3_open("data/thediscord", &db);
             std::unordered_map<std::string, dpp::snowflake> pubgIdToDiscordUser {};
-            std::string sql {"SELECT UserId, PubgId FROM Users"};
+            std::string sql {"SELECT UserId, PubgId FROM Users WHERE PubgId IS NOT NULL;"};
+            // Below line is giving Uncaught exception in tick_timers: basic_string: construction from null is not valid
             rc = sqlite3_exec(db, sql.c_str(), fillPubgIdUserIdHashMapFromRecords, static_cast<void*>(&pubgIdToDiscordUser), &zErrMsg);
 
             // For each pubgId:
@@ -612,7 +614,6 @@ int main(int argc, char* argv[]) {
             for (const PubgPost& pubgPost: pubgPosts) {
                 co_await bot.co_message_create(getPubgPostMessage(*JBBChannel, pubgPost, pubgIdToDiscordUser));
             }
-            
             long long timeNow = std::chrono::duration_cast<std::chrono::milliseconds>((myclock.now()).time_since_epoch()).count();
             // Update the aura for each pubgId in auraDelta
             for (const auto& [pubgId, auraDelta]: auraDelta) {
