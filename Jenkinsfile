@@ -2,11 +2,6 @@ pipeline {
     agent any
 
     stages {
-        stage('Stop previous deployment') {
-            steps {
-                echo 'Stopping previous deployment..'
-            }
-        }
         stage('Configure') {
             steps {
                 sh 'cmake -B build'
@@ -20,6 +15,11 @@ pipeline {
         stage('Test') {
             steps {
                 echo 'Testing..'
+            }
+        }
+        stage('Stop previous deployment') {
+            steps {
+                echo 'Stopping previous deployment..'
             }
         }
         stage('Deploy') {
