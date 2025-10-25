@@ -17,6 +17,11 @@ pipeline {
                 echo 'Testing..'
             }
         }
+        stage('Publish') {
+            steps {
+                archiveArtifacts artifacts: 'build/ModBot'
+            }
+        }
         stage('Stop previous deployment') {
             steps {
                 echo 'Stopping previous deployment..'
