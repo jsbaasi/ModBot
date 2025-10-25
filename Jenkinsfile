@@ -30,7 +30,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Daemonising and deploying..'
-                echo "Dont forget to launch with prod argument"`
+                echo 'Dont forget to launch with prod argument'
             }
         } 
     }
