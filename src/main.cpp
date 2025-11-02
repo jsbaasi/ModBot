@@ -11,6 +11,7 @@
 #include <iostream>
 #include <dpp/dpp.h>
 #include <dpp/presence.h>
+#include <ostream>
 #include <set>
 #include <string>
 #include <sqlite3.h>
@@ -237,6 +238,14 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage:  " << argv[0] << " dev/prod\n";
         return -1;
     }
+    sqlite3* db {};
+    int rc{};
+    rc = sqlite3_open_v2("data/thediscord", &db, SQLITE_OPEN_READWRITE, NULL);
+    if (rc != 0) {
+        std::cerr << "Bot SQLite database does not exist at data/thediscord";
+        return -1;
+    }
+
     const dpp::snowflake* JBBChannel{};
     std::ifstream dTokenStream{};
 
@@ -248,15 +257,27 @@ int main(int argc, char* argv[]) {
         dTokenStream.open("src/dprodtoken.txt");
     }
 
+    if (dTokenStream.peek() == std::ifstream::traits_type::eof()) {
+        std::cerr << "Discord Token not present at src/d" << argv[1] << "token.txt\n";
+        return -1;
+	}
     std::string D_TOKEN{};
     dTokenStream >> D_TOKEN;
     dTokenStream.close();
     std::ifstream pTokenStream{ "src/ptoken.txt" };
+    if (pTokenStream.peek() == std::ifstream::traits_type::eof()) {
+		std::cerr << "Pubg Token not present at src/ptoken.txt\n";
+        return -1;
+	}
     std::string P_TOKEN{};
     pTokenStream >> P_TOKEN;
     pTokenStream.close();
     dpp::cluster bot(D_TOKEN, dpp::intents::i_default_intents | dpp::intents::i_guild_presences);
-    bot.on_log(dpp::utility::cout_logger());
+    bot.on_log([](const dpp::log_t& event) {
+		if (event.severity > dpp::ll_trace) {
+			std::cout << "{" << dpp::utility::current_date_time() << "} " << dpp::utility::loglevel(event.severity) << ": " << event.message << std::endl;
+		}
+	});
     std::unordered_map<dpp::presence_status, std::string> presenceStatusToString{
         {dpp::presence_status::ps_offline, std::string{"Offline"}},
         {dpp::presence_status::ps_online, std::string{"Online"}},
@@ -411,7 +432,7 @@ int main(int argc, char* argv[]) {
             }
             leftStamp = mktime(&birthdayTimeArray[leftDate]);
             rightStamp = mktime(&birthdayTimeArray[rightDate]);
-            event.reply(std::format("<@{}> birthday past <t:{}:R>. Next is <@{}> birthday <t:{}:R>", leftUserId, leftStamp, rightUserId, rightStamp));
+            event.reply(std::format("Previous was <@{}> birthday <t:{}:R>. Next is <@{}> birthday <t:{}:R>", leftUserId, leftStamp, rightUserId, rightStamp));
             sqlite3_close(db);
         }
     });
@@ -538,7 +559,7 @@ int main(int argc, char* argv[]) {
                     lastKnownMatches[pubgId] = currMatches[0]["id"];
                 } else { // This Pubg Id hasn't been processed before we just populate the latest one
                     if (!currMatches.empty()){
-                        lastKnownMatches[pubgId] = currMatches[0]["id"];
+                        lastKnownMatches[pubgId] = currMatches[1]["id"];
                     }
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(5000));
@@ -623,7 +644,7 @@ int main(int argc, char* argv[]) {
                 sqlite3_exec(db, std::format(transactionInsert, "NULL", discordId, auraDelta, timeNow, "\"PUBG Match\"", 2).c_str(), NULL, NULL, &zErrMsg);
             }
             sqlite3_close(db);
-        }, 600);
+        }, 15);
 
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
