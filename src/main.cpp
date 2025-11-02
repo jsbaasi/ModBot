@@ -644,7 +644,7 @@ int main(int argc, char* argv[]) {
                 sqlite3_exec(db, std::format(transactionInsert, "NULL", discordId, auraDelta, timeNow, "\"PUBG Match\"", 2).c_str(), NULL, NULL, &zErrMsg);
             }
             sqlite3_close(db);
-        }, 15);
+        }, 600);
 
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
