@@ -559,7 +559,7 @@ int main(int argc, char* argv[]) {
                     lastKnownMatches[pubgId] = currMatches[0]["id"];
                 } else { // This Pubg Id hasn't been processed before we just populate the latest one
                     if (!currMatches.empty()){
-                        lastKnownMatches[pubgId] = currMatches[1]["id"];
+                        lastKnownMatches[pubgId] = currMatches[0]["id"];
                     }
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(5000));
