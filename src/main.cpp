@@ -246,6 +246,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Bot SQLite database does not exist at data/thediscord";
         return -1;
     }
+    sqlite3_close(db);
 
     const dpp::snowflake* JBBChannel{};
     std::ifstream dTokenStream{};
