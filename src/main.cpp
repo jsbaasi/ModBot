@@ -147,6 +147,7 @@ struct PubgPost{
     bool isWon{};
     std::unordered_map<std::string, PubgPlayerSummary>players{}; // PubgId as key not discord snowflake
     std::string mapName{};
+    std::string gameMode{};
     int winPlace{};
     time_t matchStartTime{};
     FunFact funFact{};
@@ -214,7 +215,7 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
             .set_image("attachment://map.png")
             .set_title(std::format("#{} Place", pubgPost.winPlace))
             .add_field(
-            "Squad FPP",
+            pubgPost.gameMode,
             getEmbedDescriptionString(pubgPost)
             )
             .add_field(
@@ -295,6 +296,10 @@ int main(int argc, char* argv[]) {
         {6, "swimDistance"},
         {7, "walkDistance"},
         {8, "weaponsAcquired"},
+    };
+    std::unordered_map<std::string, std::string> apiGamemodeToPost{
+        {"squad-fpp", "Squad FPP"},
+        {"duo-fpp", "Duo FPP"},
     };
     std::chrono::system_clock myclock{};
     std::unordered_map<dpp::snowflake, dpp::presence> discordPresences{};
@@ -587,44 +592,46 @@ int main(int argc, char* argv[]) {
                 if (matchResponse.status_code!=200) {continue;}
                 nlohmann::json matchJson {nlohmann::json::parse(matchResponse.text)};
                 nlohmann::json& matchParticipants {matchJson["included"]};
-                if (matchJson["data"]["attributes"]["gameMode"] == "squad-fpp") {
-                    PubgPost currPost {};
-                    currPost.matchStartTime = UTCStringToTimeT(static_cast<std::string>(matchJson["data"]["attributes"]["createdAt"]).c_str(), "%Y-%m-%dT%H:%M:%SZ");
-                    currPost.mapName = matchJson["data"]["attributes"]["mapName"];
-                    currPost.winPlace = 101;
-                    int randomFunFactIndex {Random::get(0, constants::LastFunTypeIndex)};
-                    currPost.funFact = {"", static_cast<FunFactType>(randomFunFactIndex), 0}; 
-                    for (const auto& entity: matchParticipants) {
-                        if (entity["type"] == "participant") {
-                            const nlohmann::json& participantStats {entity["attributes"]["stats"]};
-                            // Get our fun fact data
-                            if (participantStats[funIndexToApiKey[randomFunFactIndex]]>currPost.funFact.data){
-                                currPost.funFact.data=participantStats[funIndexToApiKey[randomFunFactIndex]];
-                                if (pubgIdSet.contains(entity["attributes"]["stats"]["playerId"])){
-                                    currPost.funFact.user=std::format("<@{}>", pubgIdToDiscordUser[entity["attributes"]["stats"]["playerId"]].str());
-                                } else {
-                                    currPost.funFact.user=participantStats["name"];
-                                }
-                            }
-                            // Get our target player data
-                            if (pubgIdSet.contains(participantStats["playerId"])){
-                                currPost.duration=std::max(currPost.duration, static_cast<int>(participantStats["timeSurvived"]));
-                                PubgPlayerSummary currSummary {
-                                    participantStats["name"],
-                                    participantStats["kills"],
-                                    participantStats["revives"],
-                                    participantStats["assists"],
-                                    participantStats["longestKill"],
-                                    participantStats["damageDealt"]
-                                };
-                                currPost.players[participantStats["playerId"]]=currSummary;
-                                if (participantStats["winPlace"]==1){currPost.isWon=true;}
-                                if (currPost.winPlace > participantStats["winPlace"]){currPost.winPlace=participantStats["winPlace"];}
-                                auraDelta[participantStats["playerId"]] += (static_cast<int>(participantStats["revives"])*3) + static_cast<int>(participantStats["kills"]);
+                if (matchJson["data"]["attributes"]["gameMode"] != "squad-fpp" && matchJson["data"]["attributes"]["gameMode"] != "duo-fpp") {
+                    continue;
+                }
+                PubgPost currPost {};
+                currPost.matchStartTime = UTCStringToTimeT(static_cast<std::string>(matchJson["data"]["attributes"]["createdAt"]).c_str(), "%Y-%m-%dT%H:%M:%SZ");
+                currPost.mapName = matchJson["data"]["attributes"]["mapName"];
+                currPost.winPlace = 101;
+                currPost.gameMode = apiGamemodeToPost[matchJson["data"]["attributes"]["gameMode"]];
+                int randomFunFactIndex {Random::get(0, constants::LastFunTypeIndex)};
+                currPost.funFact = {"", static_cast<FunFactType>(randomFunFactIndex), 0}; 
+                for (const auto& entity: matchParticipants) {
+                    if (entity["type"] == "participant") {
+                        const nlohmann::json& participantStats {entity["attributes"]["stats"]};
+                        // Get our fun fact data
+                        if (participantStats[funIndexToApiKey[randomFunFactIndex]]>currPost.funFact.data){
+                            currPost.funFact.data=participantStats[funIndexToApiKey[randomFunFactIndex]];
+                            if (pubgIdSet.contains(entity["attributes"]["stats"]["playerId"])){
+                                currPost.funFact.user=std::format("<@{}>", pubgIdToDiscordUser[entity["attributes"]["stats"]["playerId"]].str());
+                            } else {
+                                currPost.funFact.user=participantStats["name"];
                             }
                         }
+                        // Get our target player data
+                        if (pubgIdSet.contains(participantStats["playerId"])){
+                            currPost.duration=std::max(currPost.duration, static_cast<int>(participantStats["timeSurvived"]));
+                            PubgPlayerSummary currSummary {
+                                participantStats["name"],
+                                participantStats["kills"],
+                                participantStats["revives"],
+                                participantStats["assists"],
+                                participantStats["longestKill"],
+                                participantStats["damageDealt"]
+                            };
+                            currPost.players[participantStats["playerId"]]=currSummary;
+                            if (participantStats["winPlace"]==1){currPost.isWon=true;}
+                            if (currPost.winPlace > participantStats["winPlace"]){currPost.winPlace=participantStats["winPlace"];}
+                            auraDelta[participantStats["playerId"]] += (static_cast<int>(participantStats["revives"])*3) + static_cast<int>(participantStats["kills"]);
+                        }
                     }
-                    pubgPosts.push_back(currPost);
+                pubgPosts.push_back(currPost);
                 }
             }
 
