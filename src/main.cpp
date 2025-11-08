@@ -528,6 +528,7 @@ int main(int argc, char* argv[]) {
         }, 10);
 
         // ------------------- Pubg polling timer
+        // &bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel
         bot.start_timer([&](const dpp::timer& timer) -> dpp::task<void>{
             // Populate pubgIdToDiscordUser with the PubgIds we need
             sqlite3* db{};
@@ -578,8 +579,6 @@ int main(int argc, char* argv[]) {
                     matchIdToPubgId[matchId].insert(pubgId);
                 }
             }
-
-            
             // For each match in "matchIdToPubgId"
             // 1. Call the /matches endpoint
             // 2. Populate a PubgPost struct
@@ -589,7 +588,7 @@ int main(int argc, char* argv[]) {
             std::unordered_map<std::string, int> auraDelta{};
             for (const auto& [matchId, pubgIdSet]: matchIdToPubgId) {
                 cpr::Response matchResponse = cpr::Get(cpr::Url{"https://api.pubg.com/shards/steam/matches/"+matchId},
-                                                       cpr::Header{{"accept", "application/vnd.api+json"}});
+                    cpr::Header{{"accept", "application/vnd.api+json"}});
                 if (matchResponse.status_code!=200) {continue;}
                 nlohmann::json matchJson {nlohmann::json::parse(matchResponse.text)};
                 nlohmann::json& matchParticipants {matchJson["included"]};
@@ -632,8 +631,8 @@ int main(int argc, char* argv[]) {
                             auraDelta[participantStats["playerId"]] += (static_cast<int>(participantStats["revives"])*3) + static_cast<int>(participantStats["kills"]);
                         }
                     }
-                pubgPosts.push_back(currPost);
                 }
+                pubgPosts.push_back(currPost);
             }
 
             // Sort the posts list
