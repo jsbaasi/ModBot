@@ -187,6 +187,9 @@ namespace LoL {
             sqlite3_exec(db, std::format(sql::updateBalance, balanceChange, discordId).c_str(), NULL, NULL, &zErrMsg);
             sqlite3_exec(db, std::format(sql::transactionInsert, "NULL", discordId, balanceChange, timeNow, "\"League Match\"", 2).c_str(), NULL, NULL, &zErrMsg);
         }
+
+        // Log completion of the league polling function
+        bot.log(dpp::loglevel::ll_info, "Finishing League polling function");
         sqlite3_close(db);
     }
 }
