@@ -8,6 +8,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # Create an executable
 add_executable(${PROJECT_NAME}
     src/progress.pb.cc
+    src/league.cpp
     src/main.cpp
 )
 

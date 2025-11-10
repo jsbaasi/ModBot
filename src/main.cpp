@@ -38,6 +38,7 @@
 #include "constants.h"
 #include "utility.h"
 #include "progress.pb.h"
+#include "league.h"
 
 /*
 So the main functionality of the bot is the tracking stuff, need to make a 10sec/1min/5min loop that
@@ -126,7 +127,7 @@ enum FunFactType{
     LOOTER,
 };
 
-struct FunFact{
+struct PostFunFact{
     std::string user{};
     FunFactType type{};
     double data{};
@@ -141,6 +142,20 @@ struct PubgPlayerSummary{
     double damageDealt{};
 };
 
+struct PostWinnerSquad {
+    int squadSize{};
+    int finalPlace{};
+    int totalKills{};
+    std::vector<std::string> players{};
+};
+
+struct PostSquadWiper {
+    int squadSize{};
+    int finalPlace{};
+    int totalKills{};
+    std::vector<std::string> players{};
+};
+
 struct PubgPost{
     // TODO I need to add time started member variable, carry on with visual studio experiments on mktime() and tm structs and all that bologna
     int duration{};
@@ -150,7 +165,9 @@ struct PubgPost{
     std::string gameMode{};
     int winPlace{};
     time_t matchStartTime{};
-    FunFact funFact{};
+    PostFunFact funFact{};
+    PostWinnerSquad winnerSquad{};
+    PostSquadWiper squadWiper{};
 };
 
 std::string getEmbedDescriptionString(const PubgPost& pubgPost) {
@@ -210,7 +227,7 @@ dpp::message getPubgPostMessage(dpp::snowflake channelId, const PubgPost& pubgPo
         statsString+=std::format("K:{}-R:{}-A:{}-LK:{:.1f}m-D:{:.1f}\n------\n", pubgPlayerSummary.kills, pubgPlayerSummary.revives, pubgPlayerSummary.assists, pubgPlayerSummary.longestKill, pubgPlayerSummary.damageDealt);
     }
 
-    resEmbed.set_author("JJB", "https://jsbaasi.github.io/", "attachment://jjbLogo.png")
+    resEmbed.set_author("JJB", "https://stormblessed.fr/", "attachment://jjbLogo.png")
             .set_thumbnail("attachment://pubg.png")
             .set_image("attachment://map.png")
             .set_title(std::format("#{} Place", pubgPost.winPlace))
@@ -274,6 +291,18 @@ int main(int argc, char* argv[]) {
     std::string P_TOKEN{};
     pTokenStream >> P_TOKEN;
     pTokenStream.close();
+
+
+    std::ifstream lTokenStream{ "src/ltoken.txt" };
+    if (lTokenStream.peek() == std::ifstream::traits_type::eof()) {
+		std::cerr << "League Token not present at src/ltoken.txt\n";
+        return -1;
+	}
+    std::string L_TOKEN{};
+    lTokenStream >> L_TOKEN;
+    lTokenStream.close();
+
+
     dpp::cluster bot(D_TOKEN, dpp::intents::i_default_intents | dpp::intents::i_guild_presences);
     bot.on_log([](const dpp::log_t& event) {
 		if (event.severity > dpp::ll_trace) {
@@ -305,7 +334,8 @@ int main(int argc, char* argv[]) {
     std::chrono::system_clock myclock{};
     std::unordered_map<dpp::snowflake, dpp::presence> discordPresences{};
     std::unordered_map<dpp::snowflake, int> userDailies{};
-    std::unordered_map<std::string, std::string> lastKnownMatches{};
+    std::unordered_map<std::string, std::string> pubglastKnownMatches{};
+    std::unordered_map<std::string, std::string> leaguelastKnownMatches{};
 
     // This handles the commands that get passed in
     bot.on_slashcommand([](const dpp::slashcommand_t& event) {
@@ -525,7 +555,7 @@ int main(int argc, char* argv[]) {
             // ------------------- Close out sql stuff DONE
             sqlite3_close(db);
             return 0;
-        }, 10);
+        }, 1200);
 
         // ------------------- Pubg polling timer
         // &bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel
@@ -552,8 +582,8 @@ int main(int argc, char* argv[]) {
                 nlohmann::json playerJson {nlohmann::json::parse(playerResponse.text)};
                 nlohmann::json& currMatches {playerJson["data"][0]["relationships"]["matches"]["data"]};
                 
-                if (lastKnownMatches.contains(pubgId)) {
-                    std::string& lkMatch {lastKnownMatches[pubgId]};
+                if (pubglastKnownMatches.contains(pubgId)) {
+                    std::string& lkMatch {pubglastKnownMatches[pubgId]};
                     if (currMatches[0]["id"]!=lkMatch) {
                         for (int i{0}; i<currMatches.size(); i++) {
                             if (currMatches[i]["id"]!=lkMatch) {
@@ -563,10 +593,10 @@ int main(int argc, char* argv[]) {
                             }
                         }
                     }
-                    lastKnownMatches[pubgId] = currMatches[0]["id"];
+                    pubglastKnownMatches[pubgId] = currMatches[0]["id"];
                 } else { // This Pubg Id hasn't been processed before we just populate the latest one
                     if (!currMatches.empty()){
-                        lastKnownMatches[pubgId] = currMatches[0]["id"];
+                        pubglastKnownMatches[pubgId] = currMatches[0]["id"];
                     }
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(5000));
@@ -601,7 +631,9 @@ int main(int argc, char* argv[]) {
                 currPost.winPlace = 101;
                 currPost.gameMode = apiGamemodeToPost[matchJson["data"]["attributes"]["gameMode"]];
                 int randomFunFactIndex {Random::get(0, constants::LastFunTypeIndex)};
-                currPost.funFact = {"", static_cast<FunFactType>(randomFunFactIndex), 0}; 
+                currPost.funFact = {"", static_cast<FunFactType>(randomFunFactIndex), 0};
+                std::string winnerSquad{};
+                std::string squadWiper{};
                 for (const auto& entity: matchParticipants) {
                     if (entity["type"] == "participant") {
                         const nlohmann::json& participantStats {entity["attributes"]["stats"]};
@@ -651,6 +683,11 @@ int main(int argc, char* argv[]) {
                 sqlite3_exec(db, std::format(transactionInsert, "NULL", discordId, auraDelta, timeNow, "\"PUBG Match\"", 2).c_str(), NULL, NULL, &zErrMsg);
             }
             sqlite3_close(db);
+        }, 600);
+
+        // ------------------- League polling timer
+        bot.start_timer([&](const dpp::timer& timer) -> dpp::task<void> {
+            co_await LoL::LeaguePollingMain(L_TOKEN, leaguelastKnownMatches, bot, *JBBChannel, myclock);
         }, 600);
 
         // ------------------- Registering commands
