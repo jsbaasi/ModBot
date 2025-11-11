@@ -36,11 +36,9 @@ namespace LoL {
                     if (last20Matches[i]!=lkMatch) {
                         leagueIdToMatches[leagueId].insert(last20Matches[i]);
                     } else {
-                        continue;
+                        break;
                     }
                 }
-            } else { // This League Id hasn't been processed before we just populate the latest one
-                if (last20Matches.empty()){continue;}
             }
             leaguelastKnownMatches[leagueId] = last20Matches[0];
             std::this_thread::sleep_for(std::chrono::milliseconds(5000));
