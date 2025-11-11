@@ -476,6 +476,7 @@ int main(int argc, char* argv[]) {
     // This runs when the bot starts and reigsters our timers:
     // 1. User polling
     // 2. Pubg polling
+    // 3. League polling
     // And also registers the bot commands
     bot.on_ready([&](const dpp::ready_t& event) {
         
