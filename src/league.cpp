@@ -24,6 +24,7 @@ namespace LoL {
             cpr::Response matchesResponse = cpr::Get(cpr::Url{std::format("https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/{}/ids", leagueId)},
                                                      cpr::Header{{"X-Riot-Token", L_TOKEN}});
             
+            std::cout << "Matches response code is " << matchesResponse.status_code << '\n';
             if (matchesResponse.status_code!=200) {continue;}
             nlohmann::json last20Matches {nlohmann::json::parse(matchesResponse.text)};
 
