@@ -1,6 +1,5 @@
 #include <dpp/dpp.h>
 #include <format>
-#include <ostream>
 #include <sqlite3.h>
 #include <string>
 #include <thread>
@@ -150,6 +149,7 @@ namespace LoL {
         // Populate leagueIdToDiscordUser with the LeagueIds we need
         IdToSnowflake leagueIdToDiscordUser{};
         sqlite3_exec(db, sql::getLeagueIds, fillLeagueIdUserIdHashMapFromRecords, static_cast<void*>(&leagueIdToDiscordUser), &zErrMsg);
+        bot.log(dpp::loglevel::ll_info, std::format("leagueIdToDiscordUser {}", leagueIdToDiscordUser.size()));
         
         // For each leagueId:
         // 1. we request /matches/by-puuid
@@ -157,11 +157,13 @@ namespace LoL {
         // 3. populate "leagueIdToMatches" string:set()
         IdToSet leagueIdToMatches{};
         populateLeagueIdToMatches(leagueIdToMatches, L_TOKEN, leaguelastKnownMatches, leagueIdToDiscordUser);
+        bot.log(dpp::loglevel::ll_info, std::format("leagueIdToMatches {}", leagueIdToMatches.size()));
         
         // For each leagueId in "leagueIdToMatches" we iterate through
         // the matches and build out a "matchIdToLeagueId" string:set()
         IdToSet matchIdToLeagueId {};
         populateMatchIdToLeagueId(matchIdToLeagueId, leagueIdToMatches);
+        bot.log(dpp::loglevel::ll_info, std::format("matchIdToLeagueId {}", matchIdToLeagueId.size()));
         
         // For each match in "matchIdToLeagueId"
         // 1. Call the /matches endpoint
@@ -171,6 +173,7 @@ namespace LoL {
         LPostVec leaguePosts{};
         IdToInt auraDelta{};
         populateLeaguePostsAndAuraDelta(L_TOKEN, matchIdToLeagueId, leaguePosts, auraDelta);
+        bot.log(dpp::loglevel::ll_info, std::format("leaguePosts {}", leaguePosts.size()));
 
         // Sort the posts list
         std::sort(leaguePosts.begin(), leaguePosts.end(),[](LeaguePost const& lhs, LeaguePost const& rhs){return lhs.matchStartTime < rhs.matchStartTime;});
@@ -189,7 +192,7 @@ namespace LoL {
         }
 
         // Log completion of the league polling function
-        bot.log(dpp::loglevel::ll_info, "Finishing League polling function");
+        bot.log(dpp::loglevel::ll_info, "Finished League polling function");
         sqlite3_close(db);
     }
 }
