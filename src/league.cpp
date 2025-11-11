@@ -31,12 +31,12 @@ namespace LoL {
 
             if (leaguelastKnownMatches.contains(leagueId)) {
                 std::string& lkMatch {leaguelastKnownMatches[leagueId]};
-                if (last20Matches[0]==lkMatch) {break;}
+                if (last20Matches[0]==lkMatch) {continue;}
                 for (int i{0}; i<last20Matches.size(); i++) {
                     if (last20Matches[i]!=lkMatch) {
                         leagueIdToMatches[leagueId].insert(last20Matches[i]);
                     } else {
-                        break;
+                        continue;
                     }
                 }
             } else { // This League Id hasn't been processed before we just populate the latest one
