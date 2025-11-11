@@ -20,11 +20,12 @@ namespace LoL {
     }
 
     void populateLeagueIdToMatches(IdToSet& leagueIdToMatches, std::string& L_TOKEN, IdToId& leaguelastKnownMatches, IdToSnowflake& leagueIdToDiscordUser) {
+        std::cout << "Here in loop, for " << leagueIdToDiscordUser.size() << std::endl;
         for (const auto& [leagueId, discordId]: leagueIdToDiscordUser) {
             cpr::Response matchesResponse = cpr::Get(cpr::Url{std::format("https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/{}/ids", leagueId)},
                                                      cpr::Header{{"X-Riot-Token", L_TOKEN}});
             
-            std::cout << "Matches response code is " << matchesResponse.status_code << '\n';
+            std::cout << "League Id: " << leagueId << " Matches response code is " << matchesResponse.status_code << std::endl;
             if (matchesResponse.status_code!=200) {continue;}
             nlohmann::json last20Matches {nlohmann::json::parse(matchesResponse.text)};
 
