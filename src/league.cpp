@@ -158,12 +158,26 @@ namespace LoL {
         IdToSet leagueIdToMatches{};
         populateLeagueIdToMatches(leagueIdToMatches, L_TOKEN, leaguelastKnownMatches, leagueIdToDiscordUser);
         bot.log(dpp::loglevel::ll_info, std::format("leagueIdToMatches {}", leagueIdToMatches.size()));
+        for (const auto& [key, matches]: leagueIdToMatches) {
+            std::cout << "key is " << key << " values is ";
+            for (const auto& e: matches) {
+                std::cout << e << " ";
+            }
+            std::cout << '\n';
+        }
         
         // For each leagueId in "leagueIdToMatches" we iterate through
         // the matches and build out a "matchIdToLeagueId" string:set()
         IdToSet matchIdToLeagueId {};
         populateMatchIdToLeagueId(matchIdToLeagueId, leagueIdToMatches);
         bot.log(dpp::loglevel::ll_info, std::format("matchIdToLeagueId {}", matchIdToLeagueId.size()));
+        for (const auto& [key, matches]: matchIdToLeagueId) {
+            std::cout << "key is " << key << " values is ";
+            for (const auto& e: matches) {
+                std::cout << e << " ";
+            }
+            std::cout << '\n';
+        }
         
         // For each match in "matchIdToLeagueId"
         // 1. Call the /matches endpoint
