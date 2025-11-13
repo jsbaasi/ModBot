@@ -7,6 +7,8 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Create an executable
 add_executable(${PROJECT_NAME}
+    src/commands/command_listener.cpp
+    src/sql.cpp
     src/progress.pb.cc
     src/league.cpp
     src/main.cpp
@@ -31,6 +33,8 @@ target_link_libraries(${PROJECT_NAME}
  
 # Include the DPP directories.
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/commands
     ${DPP_INCLUDE_DIR}
     ${SQLITE_INCLUDE_DIR}
 )

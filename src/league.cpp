@@ -148,7 +148,7 @@ namespace LoL {
         
         // Populate leagueIdToDiscordUser with the LeagueIds we need
         IdToSnowflake leagueIdToDiscordUser{};
-        sqlite3_exec(db, sql::getLeagueIds, fillLeagueIdUserIdHashMapFromRecords, static_cast<void*>(&leagueIdToDiscordUser), &zErrMsg);
+        sqlite3_exec(db, sql::selectLeagueIds, fillLeagueIdUserIdHashMapFromRecords, static_cast<void*>(&leagueIdToDiscordUser), &zErrMsg);
         bot.log(dpp::loglevel::ll_info, std::format("leagueIdToDiscordUser {}", leagueIdToDiscordUser.size()));
         
         // For each leagueId:
