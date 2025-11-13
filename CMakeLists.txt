@@ -9,6 +9,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 add_executable(${PROJECT_NAME}
     src/commands/command_listener.cpp
     src/league/league.cpp
+    src/pubg/pubg.cpp
     src/sql.cpp
     src/progress.pb.cc
     src/main.cpp
@@ -36,6 +37,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/commands
     ${CMAKE_SOURCE_DIR}/src/league
+    ${CMAKE_SOURCE_DIR}/src/pubg
     ${DPP_INCLUDE_DIR}
     ${SQLITE_INCLUDE_DIR}
 )
