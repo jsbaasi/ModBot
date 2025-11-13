@@ -1,14 +1,18 @@
 #include "command_listener.h"
 #include <dpp/dpp.h>
 #include <sqlite3.h>
+#include "message.h"
 #include "sql.h"
 #include "progress.pb.h"
+#include <map>
+#include <string>
+#include <utility>
 
 void CommandListener::on_slashcommand(const dpp::slashcommand_t &event) {
     if (event.command.get_command_name() == "ping") {
         event.reply("Pong!");
     }
-    if (event.command.get_command_name() == "balance") {
+    else if (event.command.get_command_name() == "balance") {
         sqlite3* db{};
         char *zErrMsg = 0;
         int balance{-1};
@@ -24,7 +28,7 @@ void CommandListener::on_slashcommand(const dpp::slashcommand_t &event) {
         }
         sqlite3_close(db);
     }
-    if (event.command.get_command_name() == "register") {
+    else if (event.command.get_command_name() == "register") {
         sqlite3* db{};
         char *zErrMsg = 0;
         int rc = sqlite3_open("data/thediscord", &db);
@@ -38,7 +42,7 @@ void CommandListener::on_slashcommand(const dpp::slashcommand_t &event) {
         }
         sqlite3_close(db);
     }
-    if (event.command.get_command_name() == "inventory") {
+    else if (event.command.get_command_name() == "inventory") {
         sqlite3* db {};
         int rc = sqlite3_open("data/thediscord", &db);
         char *errmsg{};
@@ -64,7 +68,7 @@ void CommandListener::on_slashcommand(const dpp::slashcommand_t &event) {
         sqlite3_finalize(myStmt);
         sqlite3_close(db);
     }
-    if (event.command.get_command_name() == "birthday") {
+    else if (event.command.get_command_name() == "birthday") {
         sqlite3* db {};
         int rc = sqlite3_open("data/thediscord", &db);
         char *errmsg{};
@@ -132,6 +136,50 @@ void CommandListener::on_slashcommand(const dpp::slashcommand_t &event) {
         leftStamp = mktime(&birthdayTimeArray[leftDate]);
         rightStamp = mktime(&birthdayTimeArray[rightDate]);
         event.reply(std::format("Previous was <@{}> birthday <t:{}:R>. Next is <@{}> birthday <t:{}:R>", leftUserId, leftStamp, rightUserId, rightStamp));
+        sqlite3_close(db);
+    }
+    else if (event.command.get_command_name() == "leaderboard") {
+        sqlite3* db {};
+        sqlite3_open("data/thediscord", &db);
+        char *errmsg{};
+
+        std::vector<std::pair<std::string, int>> userIdToBalance{};
+        sqlite3_exec(db, sql::selectUserIdOrderByBalance, sql::fillUserIdBalanceHashMapFromRecords, static_cast<void*>(&userIdToBalance), &errmsg);
+        std::string resString {};
+        int count{1};
+        for (const auto& [userId, balance]: userIdToBalance) {
+            switch (count) {
+                case 1:
+                    resString += ":first_place: ";
+                    break;
+                case 2:
+                    resString += ":second_place: ";
+                    break;
+                case 3:
+                    resString += ":third_place: ";
+                    break;
+                default:
+                    resString += std::to_string(count) + ". ";
+                    break; 
+            }
+            resString += std::format("<@{}>", userId) + " - **" + std::to_string(balance) + "** aura\n";
+            count+=1;
+        }
+        dpp::embed resEmbed{};
+        dpp::message resMessage{event.command.channel_id, ""};
+        
+        resMessage.add_file("jjbLogo.png", dpp::utility::read_file("images/jjb/jjbLogo.png"));
+        resMessage.add_file("trophy.png", dpp::utility::read_file("images/jjb/trophy.png"));
+        resEmbed.set_author("JJB", "https://stormblessed.fr/", "attachment://jjbLogo.png")
+                .set_title("**LEADERBOARD**")
+                .set_thumbnail("attachment://trophy.png")
+                .set_color(dpp::colors::bright_gold)
+                .add_field(
+                "**BALANCE**",
+                resString
+                );
+        resMessage.add_embed(resEmbed);
+        event.reply(resMessage);
         sqlite3_close(db);
     }
 }
