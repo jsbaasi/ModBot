@@ -28,28 +28,6 @@
 #include "sql.h"
 #include "command_listener.h"
 
-/*
-So the main functionality of the bot is the tracking stuff, need to make a 10sec/1min/5min loop that
-runs continously, collecting data on the users.
-
-https://www.learncpp.com/cpp-tutorial/introduction-to-lambdas-anonymous-functions/
-I got to learn about lambda functions, unnamed functions that work better in cases
-where you need a function pointer but function is so trivial that you don't want to
-pollute the global namespace with
-
-
-https://www.learncpp.com/cpp-tutorial/a1-static-and-dynamic-libraries/
-I need to learn about libraries for sqlite
-
-If I don't give it a txt file the bot just hangs, as if waiting for input but nothing happens when
-I type something in
-
-First we need a way to get all registered users, this will mean looking through the main table
-that stores all users and their characteristics
-Then we have either one table storing all balance history or we have table for each person storing
-their balance history, naa one table
-*/
-
 time_t UTCStringToTimeT(const char* timestr, const char* fmtstr) {
 	std::tm t = {}; // tm_isdst = 0, don't think about it please, this is UTC
 	std::istringstream ss(timestr);

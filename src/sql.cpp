@@ -42,4 +42,10 @@ namespace sql {
         *static_cast<std::string*>(userId) = recordValues[0];
         return 0;
     }
+
+    int fillLeagueIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
+        // I'm casting the void pointer to map, then dereferencing it to use the operator[]
+        static_cast<std::unordered_map<std::string, dpp::snowflake>*>(users)->operator[](recordValues[1]) = recordValues[0];
+        return 0;
+    }
 }

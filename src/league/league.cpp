@@ -12,13 +12,6 @@
 
 namespace LoL {
 
-
-    int fillLeagueIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames){
-        // I'm casting the void pointer to map, then dereferencing it to use the operator[]
-        static_cast<IdToSnowflake*>(users)->operator[](recordValues[1]) = recordValues[0];
-        return 0;
-    }
-
     void populateLeagueIdToMatches(IdToSet& leagueIdToMatches, std::string& L_TOKEN, IdToId& leaguelastKnownMatches, IdToSnowflake& leagueIdToDiscordUser) {
         std::cout << "Here in loop, for " << leagueIdToDiscordUser.size() << std::endl;
         for (const auto& [leagueId, discordId]: leagueIdToDiscordUser) {
@@ -123,7 +116,7 @@ namespace LoL {
                 .set_image("attachment://map.png")
                 .add_field(
                 leaguePost.gameMode,
-                std::format("Match started at <t:{}:R> and ended at <t:{}:R>, lasting {:.1f} minutes.", leaguePost.matchStartTime, leaguePost.matchEndTime, leaguePost.duration)
+                std::format("Match started <t:{}:R> and ended <t:{}:R>, lasting {:.1f} minutes.", leaguePost.matchStartTime, leaguePost.matchEndTime, leaguePost.duration)
                 )
                 .add_field(
                 "Players",
@@ -148,7 +141,7 @@ namespace LoL {
         
         // Populate leagueIdToDiscordUser with the LeagueIds we need
         IdToSnowflake leagueIdToDiscordUser{};
-        sqlite3_exec(db, sql::selectLeagueIds, fillLeagueIdUserIdHashMapFromRecords, static_cast<void*>(&leagueIdToDiscordUser), &zErrMsg);
+        sqlite3_exec(db, sql::selectLeagueIds, sql::fillLeagueIdUserIdHashMapFromRecords, static_cast<void*>(&leagueIdToDiscordUser), &zErrMsg);
         bot.log(dpp::loglevel::ll_info, std::format("leagueIdToDiscordUser {}", leagueIdToDiscordUser.size()));
         
         // For each leagueId:

@@ -16,5 +16,6 @@ namespace sql
     int fillPubgIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames);
     int fillUserIdSetFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames);
     int fillUserIdFromBirthday(void* userId, int numberOfColumns, char **recordValues, char **columnNames);
+    int fillLeagueIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames);
 }
 #endif
