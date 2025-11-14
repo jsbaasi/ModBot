@@ -14,6 +14,7 @@
 #include <format>
 #include <stdlib.h>
 
+#include "appcommand.h"
 #include "json.h"
 #include <cpr/cpr.h>
 #include <dpp/dpp.h>
@@ -198,12 +199,15 @@ int main(int argc, char* argv[]) {
 
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
-            bot.global_command_create(dpp::slashcommand("register", "Register for aura farming", bot.me.id));
-            bot.global_command_create(dpp::slashcommand("balance", "Check your aura balance", bot.me.id));
-            bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
-            bot.global_command_create(dpp::slashcommand("inventory", "View your inventory", bot.me.id));
-            bot.global_command_create(dpp::slashcommand("birthday", "Whose birthday is next", bot.me.id));
-            bot.global_command_create(dpp::slashcommand("leaderboard", "Whose got the most aura", bot.me.id));
+            std::vector<dpp::slashcommand> commands {
+                dpp::slashcommand("register", "Register for aura farming", bot.me.id),
+                dpp::slashcommand("balance", "Check your aura balance", bot.me.id),
+                dpp::slashcommand("ping", "Ping pong!", bot.me.id),
+                dpp::slashcommand("inventory", "View your inventory", bot.me.id),
+                dpp::slashcommand("birthday", "Whose birthday is next", bot.me.id),
+                dpp::slashcommand("leaderboard", "Whose got the most aura", bot.me.id)
+            };
+            bot.global_bulk_command_create(commands);
         }
     });
 
