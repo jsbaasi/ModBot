@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "pubg.h"
+#include "misc-enum.h"
 #include "sql.h"
 #include "random.h"
 #include "constants.h"
@@ -50,7 +51,7 @@ void populatePubgIdToMatches(IdToSet& pubgIdToMatches, std::string& P_TOKEN, IdT
                 }
             }
         }
-        pubglastKnownMatches[pubgId] = currMatches[0]["id"];
+        pubglastKnownMatches[pubgId] = currMatches[constants::PUBGRememberIndex]["id"];
         std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     }
 }
@@ -132,7 +133,7 @@ void populatePubgPost(IdToInt& auraDelta, nlohmann::json& matchJson, PubgPost& c
         currPost.duration                               = std::max(currPost.duration, participantStats["timeSurvived"].get<int>()/60.0);
         currPost.players[participantStats["playerId"]]  = currSummary;
         currPost.isWon                                  = participantStats["winPlace"]==1 ? true : false;
-        currPost.winPlace                               = currPost.winPlace > participantStats["winPlace"].get<int>() ? participantStats["winPlace"].get<int>() : currPost.winPlace;
+        currPost.winPlace                               = (currPost.winPlace < participantStats["winPlace"].get<int>()) ? participantStats["winPlace"].get<int>() : currPost.winPlace;
         auraDelta[participantStats["playerId"]]         += participantStats["revives"].get<int>()*3 + participantStats["kills"].get<int>();
     }
     currPost.matchStartTime = UTCStringToTimeT(matchJson["data"]["attributes"]["createdAt"].get<std::string>(), "%Y-%m-%dT%H:%M:%SZ");
@@ -248,12 +249,12 @@ dpp::task<void> PubgPollingMain(std::string& P_TOKEN, IdToId& pubglastKnownMatch
     // 3. populate "pubgIdToMatches" string:set()
     IdToSet pubgIdToMatches{};
     populatePubgIdToMatches(pubgIdToMatches, P_TOKEN, pubglastKnownMatches, pubgIdToDiscordUser);
-
+    
     // For each pubgId in "pubgIdToMatches" we iterate through
     // the matches and build out a "matchIdToPubgId" string:set()
     IdToSet matchIdToPubgId {};
     populateMatchIdToPubgId(matchIdToPubgId, pubgIdToMatches);
-
+    
     // For each match in "matchIdToPubgId"
     // 1. Call the /matches endpoint
     // 2. Populate a PubgPost struct

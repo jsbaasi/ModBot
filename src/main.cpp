@@ -17,6 +17,7 @@
 #include "json.h"
 #include <cpr/cpr.h>
 #include <dpp/dpp.h>
+#include <cpptrace/from_current.hpp>
 
 #include "daily.h"
 #include "pubg/pubg.h"
@@ -186,14 +187,19 @@ int main(int argc, char* argv[]) {
 
         // ------------------- Pubg polling timer
         // &bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel
-        bot.start_timer([&](const dpp::timer& timer) -> dpp::task<void>{
-            co_await PUBG::PubgPollingMain(P_TOKEN, pubglastKnownMatches, bot, *JBBChannel, myclock);
-        }, 600);
+        bot.start_timer([&P_TOKEN, &pubglastKnownMatches, &bot, &JBBChannel, &myclock](const dpp::timer& timer) -> dpp::task<void>{
+            CPPTRACE_TRY {
+                co_await PUBG::PubgPollingMain(P_TOKEN, pubglastKnownMatches, bot, *JBBChannel, myclock);
+            } CPPTRACE_CATCH(const std::exception& e) {
+                bot.log(dpp::loglevel::ll_critical, "PUBG polling function threw exception");
+                cpptrace::from_current_exception().print(std::cout);
+            }
+        }, constants::PUBGPollingFrequency);
 
         // ------------------- League polling timer
-        bot.start_timer([&](const dpp::timer& timer) -> dpp::task<void> {
+        bot.start_timer([&L_TOKEN, &leaguelastKnownMatches, &bot, &JBBChannel, &myclock](const dpp::timer& timer) -> dpp::task<void> {
             co_await LoL::LeaguePollingMain(L_TOKEN, leaguelastKnownMatches, bot, *JBBChannel, myclock);
-        }, 600);
+        }, constants::LeaguePollingFrequency);
 
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {

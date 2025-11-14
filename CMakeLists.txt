@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.22)
 # Project name, version and description
 project(ModBot VERSION 1.0 DESCRIPTION "A test bot")
- 
+include(FetchContent)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Create an executable
@@ -21,12 +21,19 @@ find_package(SQLITE REQUIRED)
 find_package(Protobuf REQUIRED)
 include(FetchContent)
 FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git
-                         GIT_TAG 1.11.x) # The commit hash for 1.11.x. Replace with the latest from: https://github.com/libcpr/cpr/releases
+GIT_TAG 1.11.x) # The commit hash for 1.11.x. Replace with the latest from: https://github.com/libcpr/cpr/releases
 FetchContent_MakeAvailable(cpr)
+FetchContent_Declare(
+  cpptrace
+  GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
+  GIT_TAG        v1.0.4 # <HASH or TAG>
+)
+FetchContent_MakeAvailable(cpptrace)
 
 # Link the pre-installed DPP package.
 target_link_libraries(${PROJECT_NAME}
     PRIVATE cpr::cpr
+    cpptrace::cpptrace
     protobuf::libprotobuf
     ${DPP_LIBRARIES}
     ${SQLITE_LIBRARIES}
