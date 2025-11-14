@@ -4,6 +4,7 @@
 #include <sqlite3.h>
 #include <cpr/cpr.h>
 #include <string_view>
+#include <cpptrace/from_current.hpp>
 
 #include "pubg.h"
 #include "misc-enum.h"
@@ -239,6 +240,7 @@ dpp::task<void> PubgPollingMain(std::string& P_TOKEN, IdToId& pubglastKnownMatch
     char* zErrMsg{};
     sqlite3_open("data/thediscord", &db);
 
+    CPPTRACE_TRY {
     // Populate pubgIdToDiscordUser with the PubgIdIds we need
     IdToSnowflake pubgIdToDiscordUser{};
     sqlite3_exec(db, sql::selectPubgIds, sql::fillPubgIdUserIdHashMapFromRecords, static_cast<void*>(&pubgIdToDiscordUser), &zErrMsg);
@@ -283,6 +285,11 @@ dpp::task<void> PubgPollingMain(std::string& P_TOKEN, IdToId& pubglastKnownMatch
     // Log completion of the pubg polling function
     bot.log(dpp::loglevel::ll_info, "Finished PUBG polling function");
     sqlite3_close(db);
+    } CPPTRACE_CATCH(const std::exception& e) {
+        bot.log(dpp::ll_error, e.what());
+        bot.log(dpp::ll_error, cpptrace::generate_trace().to_string());
+        
+        co_return;
+    }
 }
-
 }

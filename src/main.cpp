@@ -188,12 +188,7 @@ int main(int argc, char* argv[]) {
         // ------------------- Pubg polling timer
         // &bot, &lastKnownMatches, &P_TOKEN, &funIndexToApiKey, &JBBChannel
         bot.start_timer([&P_TOKEN, &pubglastKnownMatches, &bot, &JBBChannel, &myclock](const dpp::timer& timer) -> dpp::task<void>{
-            CPPTRACE_TRY {
-                co_await PUBG::PubgPollingMain(P_TOKEN, pubglastKnownMatches, bot, *JBBChannel, myclock);
-            } CPPTRACE_CATCH(const std::exception& e) {
-                bot.log(dpp::loglevel::ll_critical, "PUBG polling function threw exception");
-                cpptrace::from_current_exception().print(std::cout);
-            }
+            co_await PUBG::PubgPollingMain(P_TOKEN, pubglastKnownMatches, bot, *JBBChannel, myclock);
         }, constants::PUBGPollingFrequency);
 
         // ------------------- League polling timer
