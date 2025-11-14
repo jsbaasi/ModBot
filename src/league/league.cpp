@@ -62,7 +62,7 @@ void populateLeaguePost(IdToInt& auraDelta, nlohmann::json& matchJson, LeaguePos
         LeaguePlayerSummary currSummary{};
         populateLeaguePlayerSummary(currSummary, matchJson["info"]["participants"][i]);
         currPost.players[matchParticipants[i]] = currSummary;
-        if (!currPost.isWon && matchJson["info"]["participants"][i]["win"]=="True"){currPost.isWon = true;}
+        if (!(currPost.isWon && matchJson["info"]["participants"][i]["win"]=="True")){currPost.isWon = true;}
         auraDelta[matchParticipants[i]] += currSummary.kills;
     }
 
