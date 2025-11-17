@@ -10,6 +10,7 @@ namespace sql
     inline constexpr char selectPubgIds[] {"SELECT UserId, PubgId FROM Users WHERE PubgId IS NOT NULL;"};
     inline constexpr char selectUserByBirthday[] {"SELECT UserId FROM Users WHERE Birthday = {};"};
     inline constexpr char selectBalanceByUser[] {"SELECT Balance FROM Users WHERE UserId={};"};
+    inline constexpr char selectUser[] {"SELECT 1 FROM Users WHERE UserId={};"};
     inline constexpr char selectBirthdays[] {"SELECT Birthday FROM Users;"};
 
     int fillLeagueIdUserIdHashMapFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames);
@@ -20,6 +21,7 @@ namespace sql
     int fillBalanceFromRecords(void* balance, int numberOfColumns, char **recordValues, char **columnNames);
     int fillUserIdSetFromRecords(void* users, int numberOfColumns, char **recordValues, char **columnNames);
     int fillUserIdFromBirthday(void* userId, int numberOfColumns, char **recordValues, char **columnNames);
+    int checkIfUserIdExists(void* exists, int numberOfColumns, char **recordValues, char **columnNames);
 }
 
 #endif

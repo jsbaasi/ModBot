@@ -181,4 +181,21 @@ void CommandListener::on_slashcommand(const dpp::slashcommand_t &event) {
         event.reply(resMessage);
         sqlite3_close(db);
     }
+    else if (event.command.get_command_name() == "transactions") {
+        dpp::command_interaction cmd_data = event.command.get_command_interaction();
+        sqlite3* db{};
+        char *zErrMsg {0};
+        sqlite3_open("data/thediscord", &db);
+
+        bool exists {false};
+        std::string userId {cmd_data.options.empty() ? event.command.get_issuing_user().id.str() : cmd_data.get_value<dpp::snowflake>(0).str()};
+        sqlite3_exec(db, std::format(sql::selectUser, userId).c_str(), sql::checkIfUserIdExists, static_cast<void*>(&exists), &zErrMsg);
+        if (!exists) {
+            event.reply(cmd_data.options.empty() ? "You are not registered in the bot's database" : "User specified is not registered in the bot's database");
+            return;
+        }
+        
+        
+        sqlite3_close(db);
+    }
 }

@@ -200,12 +200,13 @@ int main(int argc, char* argv[]) {
         // ------------------- Registering commands
         if (dpp::run_once<struct register_bot_commands>()) {
             std::vector<dpp::slashcommand> commands {
+                dpp::slashcommand("transactions", "View changes to your balance", bot.me.id),
+                dpp::slashcommand("leaderboard", "Whose got the most aura", bot.me.id),
                 dpp::slashcommand("register", "Register for aura farming", bot.me.id),
-                dpp::slashcommand("balance", "Check your aura balance", bot.me.id),
-                dpp::slashcommand("ping", "Ping pong!", bot.me.id),
-                dpp::slashcommand("inventory", "View your inventory", bot.me.id),
                 dpp::slashcommand("birthday", "Whose birthday is next", bot.me.id),
-                dpp::slashcommand("leaderboard", "Whose got the most aura", bot.me.id)
+                dpp::slashcommand("balance", "Check your aura balance", bot.me.id),
+                dpp::slashcommand("inventory", "View your inventory", bot.me.id),
+                dpp::slashcommand("ping", "Ping pong!", bot.me.id)
             };
             bot.global_bulk_command_create(commands);
         }

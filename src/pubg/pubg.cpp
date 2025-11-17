@@ -43,16 +43,16 @@ void populatePubgIdToMatches(IdToSet& pubgIdToMatches, std::string& P_TOKEN, IdT
 
         if (pubglastKnownMatches.contains(pubgId)) {
             std::string& lkMatch {pubglastKnownMatches[pubgId]};
-            if (currMatches[0]["id"]==lkMatch) {continue;}
+            if (currMatches[0]["id"].get<std::string>()==lkMatch) {continue;}
             for (int i{0}; i<currMatches.size(); i++) {
-                if (currMatches[i]["id"]!=lkMatch) {
-                    pubgIdToMatches[pubgId].insert(currMatches[i]["id"]);
+                if (currMatches[i]["id"].get<std::string>()!=lkMatch) {
+                    pubgIdToMatches[pubgId].insert(currMatches[i]["id"].get<std::string>());
                 } else {
                     break;
                 }
             }
         }
-        pubglastKnownMatches[pubgId] = currMatches[constants::PUBGRememberIndex]["id"];
+        pubglastKnownMatches[pubgId] = currMatches[constants::PUBGRememberIndex]["id"].get<std::string>();
         std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     }
 }
@@ -113,7 +113,7 @@ void populatePubgPost(IdToInt& auraDelta, nlohmann::json& matchJson, PubgPost& c
     int funFactIndex {Random::get(0, constants::LastFunTypeIndex)};
     std::string_view funFactKey{funIndexToApiKey(funFactIndex)};
     for (const auto& entity: matchParticipants) {
-        if (entity["type"] != "participant") {continue;}
+        if (entity["type"].get<std::string>() != "participant") {continue;}
         const nlohmann::json& participantStats {entity["attributes"]["stats"]};
         // Get our fun fact data
         currPost.funFact.type = funFactIndex;
@@ -139,7 +139,7 @@ void populatePubgPost(IdToInt& auraDelta, nlohmann::json& matchJson, PubgPost& c
     }
     currPost.matchStartTime = UTCStringToTimeT(matchJson["data"]["attributes"]["createdAt"].get<std::string>(), "%Y-%m-%dT%H:%M:%SZ");
     currPost.gameMode       = apiGamemodeToPost(matchJson["data"]["attributes"]["gameMode"].get<std::string>());
-    currPost.mapName        = matchJson["data"]["attributes"]["mapName"];
+    currPost.mapName        = matchJson["data"]["attributes"]["mapName"].get<std::string>();
 }
 
 void populatePubgPostsAndAuraDelta(std::string& P_TOKEN, IdToSet& matchIdToPubgId, PPostVec& pubgPosts, IdToInt auraDelta, IdToSnowflake pubgIdToDiscordUser) {
@@ -240,7 +240,6 @@ dpp::task<void> PubgPollingMain(std::string& P_TOKEN, IdToId& pubglastKnownMatch
     char* zErrMsg{};
     sqlite3_open("data/thediscord", &db);
 
-    CPPTRACE_TRY {
     // Populate pubgIdToDiscordUser with the PubgIdIds we need
     IdToSnowflake pubgIdToDiscordUser{};
     sqlite3_exec(db, sql::selectPubgIds, sql::fillPubgIdUserIdHashMapFromRecords, static_cast<void*>(&pubgIdToDiscordUser), &zErrMsg);
@@ -285,11 +284,5 @@ dpp::task<void> PubgPollingMain(std::string& P_TOKEN, IdToId& pubglastKnownMatch
     // Log completion of the pubg polling function
     bot.log(dpp::loglevel::ll_info, "Finished PUBG polling function");
     sqlite3_close(db);
-    } CPPTRACE_CATCH(const std::exception& e) {
-        bot.log(dpp::ll_error, e.what());
-        bot.log(dpp::ll_error, cpptrace::generate_trace().to_string());
-        
-        co_return;
-    }
 }
 }

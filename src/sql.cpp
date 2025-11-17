@@ -53,4 +53,9 @@ namespace sql {
         static_cast<std::vector<std::pair<std::string, int>>*>(users)->push_back({recordValues[0],std::stoi(recordValues[1])});
         return 0;
     }
+
+    int checkIfUserIdExists(void* exists, int numberOfColumns, char **recordValues, char **columnNames) {
+        *(static_cast<bool*>(exists))=true;
+        return 0;
+    }
 }
