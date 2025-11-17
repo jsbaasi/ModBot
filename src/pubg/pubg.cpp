@@ -4,7 +4,6 @@
 #include <sqlite3.h>
 #include <cpr/cpr.h>
 #include <string_view>
-#include <cpptrace/from_current.hpp>
 
 #include "pubg.h"
 #include "misc-enum.h"

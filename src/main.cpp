@@ -18,7 +18,6 @@
 #include "json.h"
 #include <cpr/cpr.h>
 #include <dpp/dpp.h>
-#include <cpptrace/from_current.hpp>
 
 #include "daily.h"
 #include "pubg/pubg.h"

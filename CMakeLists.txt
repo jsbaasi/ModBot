@@ -23,17 +23,10 @@ include(FetchContent)
 FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git
 GIT_TAG 1.11.x) # The commit hash for 1.11.x. Replace with the latest from: https://github.com/libcpr/cpr/releases
 FetchContent_MakeAvailable(cpr)
-FetchContent_Declare(
-  cpptrace
-  GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-  GIT_TAG        v1.0.4 # <HASH or TAG>
-)
-FetchContent_MakeAvailable(cpptrace)
 
 # Link the pre-installed DPP package.
 target_link_libraries(${PROJECT_NAME}
     PRIVATE cpr::cpr
-    cpptrace::cpptrace
     protobuf::libprotobuf
     ${DPP_LIBRARIES}
     ${SQLITE_LIBRARIES}
